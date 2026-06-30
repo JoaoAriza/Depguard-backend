@@ -17,8 +17,13 @@
     <description>Scanner core (Engine A + B): biblioteca Java pura, SEM Spring</description>
 
     <!-- Regra de fundação: este módulo não depende de Spring/JPA/web.
-         Jackson (parsing), CycloneDX e JGit entram nos passos que os usam. -->
+         CycloneDX e JGit entram nos passos que os usam. -->
     <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

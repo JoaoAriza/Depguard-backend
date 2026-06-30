@@ -1,0 +1,40 @@
+{
+  "name": "demo",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "demo",
+      "version": "1.0.0",
+      "dependencies": {
+        "lodash": "^4.17.20",
+        "@scope/util": "^1.0.0"
+      },
+      "devDependencies": {
+        "jest": "^29.0.0"
+      }
+    },
+    "node_modules/lodash": {
+      "version": "4.17.20",
+      "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.20.tgz",
+      "integrity": "sha512-PlhdFcillOINfeV7Ni6oF1TAEayyZBoZ8bcshTHqOYJYlrqzRK5hagpagky5o4HfCzzd1TRkXPMFq6cKk9rGmA==",
+      "license": "MIT"
+    },
+    "node_modules/@scope/util": {
+      "version": "1.2.3",
+      "resolved": "https://registry.npmjs.org/@scope/util/-/util-1.2.3.tgz",
+      "license": "Apache-2.0"
+    },
+    "node_modules/jest": {
+      "version": "29.7.0",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/jest/node_modules/chalk": {
+      "version": "4.1.2",
+      "dev": true,
+      "license": "MIT"
+    }
+  }
+}
