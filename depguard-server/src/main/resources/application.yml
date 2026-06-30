@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: depguard-server
+
+server:
+  # 8081 para não colidir com o CyberAudit (8080) ao rodar lado a lado
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

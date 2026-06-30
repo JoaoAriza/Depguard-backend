@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.joao.depguard</groupId>
+        <artifactId>depguard-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>depguard-cli</artifactId>
+    <name>depguard-cli</name>
+    <description>CLI (picocli) sobre o core — roda em qualquer CI</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.joao.depguard</groupId>
+            <artifactId>depguard-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
+    </dependencies>
+
+    <!-- fat-jar executável (maven-shade) entra no Passo 5 -->
+
+</project>
