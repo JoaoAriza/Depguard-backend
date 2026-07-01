@@ -27,6 +27,34 @@
         </dependency>
     </dependencies>
 
-    <!-- fat-jar executável (maven-shade) entra no Passo 5 -->
+    <build>
+        <finalName>depguard</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.2</version>
+                <executions>
+                    <!-- id explícito: evita herdar/mesclar a config de shade-plugin
+                         pré-configurada em pluginManagement pelo spring-boot-starter-parent
+                         (transformers de META-INF/spring.* não fazem sentido aqui, módulo sem Spring) -->
+                    <execution>
+                        <id>shade-cli</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.joao.depguard.cli.DepGuardCli</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
