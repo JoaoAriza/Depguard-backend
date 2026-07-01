@@ -3,6 +3,7 @@ package com.joao.depguard.core.secrets;
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.SecretFinding;
 import com.joao.depguard.core.model.VerificationStatus;
+import com.joao.depguard.core.testsupport.FakeSecrets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -20,7 +21,7 @@ class WorkingTreeSecretScannerTest {
 
     @Test
     void detectaChaveAwsEMascaraOValor(@TempDir Path repo) throws IOException {
-        write(repo, "config/app.env", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
+        write(repo, "config/app.env", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 
         List<SecretFinding> findings = scanner.scan(repo, Allowlist.empty());
 
@@ -34,7 +35,7 @@ class WorkingTreeSecretScannerTest {
         assertThat(f.verificationStatus()).isEqualTo(VerificationStatus.NOT_CHECKED);
         assertThat(f.allowlisted()).isFalse();
         // nunca guarda o valor cru em nenhum campo texto
-        assertThat(f.toString()).doesNotContain("AKIAABCDEFGHIJKLMNOP");
+        assertThat(f.toString()).doesNotContain(FakeSecrets.AWS_ACCESS_KEY);
     }
 
     @Test
@@ -46,7 +47,7 @@ class WorkingTreeSecretScannerTest {
 
     @Test
     void allowlistPorPathSuprimeAchado(@TempDir Path repo) throws IOException {
-        write(repo, "src/test/fixtures/creds.txt", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
+        write(repo, "src/test/fixtures/creds.txt", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 
         Allowlist allowlist = new Allowlist(Set.of("**/fixtures/**"), Set.of(), Set.of());
         assertThat(scanner.scan(repo, allowlist)).isEmpty();
@@ -54,15 +55,15 @@ class WorkingTreeSecretScannerTest {
 
     @Test
     void allowlistPorRegexDeValorSuprimeAchado(@TempDir Path repo) throws IOException {
-        write(repo, "config/app.env", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
+        write(repo, "config/app.env", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 
-        Allowlist allowlist = new Allowlist(Set.of(), Set.of("^AKIAABCDEFGHIJKLMNOP$"), Set.of());
+        Allowlist allowlist = new Allowlist(Set.of(), Set.of("^" + FakeSecrets.AWS_ACCESS_KEY + "$"), Set.of());
         assertThat(scanner.scan(repo, allowlist)).isEmpty();
     }
 
     @Test
     void allowlistPorFingerprintSuprimeAchado(@TempDir Path repo) throws IOException {
-        write(repo, "config/app.env", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
+        write(repo, "config/app.env", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 
         List<SecretFinding> first = scanner.scan(repo, Allowlist.empty());
         String fingerprint = first.get(0).fingerprint();
@@ -73,8 +74,8 @@ class WorkingTreeSecretScannerTest {
 
     @Test
     void naoEscaneiaDentroDeNodeModulesENoDotGit(@TempDir Path repo) throws IOException {
-        write(repo, "node_modules/pkg/index.js", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
-        write(repo, ".git/config", "AWS_KEY=AKIAABCDEFGHIJKLMNOP\n");
+        write(repo, "node_modules/pkg/index.js", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
+        write(repo, ".git/config", "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 
         assertThat(scanner.scan(repo, Allowlist.empty())).isEmpty();
     }

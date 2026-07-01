@@ -2,6 +2,7 @@ package com.joao.depguard.core.report;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.joao.depguard.core.testsupport.FakeSecrets;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +31,6 @@ class JsonReportWriterTest {
 
         assertThat(root.get("meta").get("partial").asBoolean()).isFalse();
         // nunca guarda o valor cru
-        assertThat(json).doesNotContain("AKIAABCDEFGHIJKLMNOP");
+        assertThat(json).doesNotContain(FakeSecrets.AWS_ACCESS_KEY);
     }
 }

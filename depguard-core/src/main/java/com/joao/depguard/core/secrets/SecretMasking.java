@@ -6,7 +6,7 @@ public final class SecretMasking {
     private SecretMasking() {
     }
 
-    /** Ex.: "AKIAABCDEFGHIJKLMNOP" -> "AKIA…MNOP". */
+    /** Preserva os 4 primeiros e os 4 últimos caracteres; o meio vira "…". */
     public static String mask(String secret) {
         if (secret == null) {
             return null;

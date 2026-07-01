@@ -2,6 +2,7 @@ package com.joao.depguard.core.report;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.joao.depguard.core.testsupport.FakeSecrets;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,7 +44,7 @@ class SarifWriterTest {
                 .isEqualTo(3);
         assertThat(secretResult.get("message").get("text").asText())
                 .contains("AKIA…MNOP")
-                .doesNotContain("AKIAABCDEFGHIJKLMNOP");
+                .doesNotContain(FakeSecrets.AWS_ACCESS_KEY);
         assertThat(secretResult.get("partialFingerprints").get("depguard").asText())
                 .isEqualTo("secret-fingerprint-xyz");
     }
