@@ -24,6 +24,7 @@
     <properties>
         <java.version>17</java.version>
         <picocli.version>4.7.5</picocli.version>
+        <cyclonedx.version>12.2.0</cyclonedx.version>
     </properties>
 
     <modules>
@@ -45,6 +46,12 @@
                 <groupId>info.picocli</groupId>
                 <artifactId>picocli</artifactId>
                 <version>${picocli.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-core-java</artifactId>
+                <version>${cyclonedx.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
