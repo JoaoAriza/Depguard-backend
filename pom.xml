@@ -25,6 +25,7 @@
         <java.version>17</java.version>
         <picocli.version>4.7.5</picocli.version>
         <cyclonedx.version>12.2.0</cyclonedx.version>
+        <jjwt.version>0.12.6</jjwt.version>
     </properties>
 
     <modules>
@@ -52,6 +53,22 @@
                 <groupId>org.cyclonedx</groupId>
                 <artifactId>cyclonedx-core-java</artifactId>
                 <version>${cyclonedx.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

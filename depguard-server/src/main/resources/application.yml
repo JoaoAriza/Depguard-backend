@@ -12,6 +12,10 @@ spring:
       ddl-auto: update
     show-sql: false
 
+jwt:
+  secret: ${JWT_SECRET:change-this-secret-in-production-min-32chars!!}
+  expiration-ms: 86400000
+
 server:
   # 8081 para não colidir com o CyberAudit (8080) ao rodar lado a lado
   port: 8081
