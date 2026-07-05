@@ -3,8 +3,10 @@ package com.joao.depguard.server.config;
 import com.joao.depguard.server.security.ApiKeyAuthFilter;
 import com.joao.depguard.server.security.JwtAuthFilter;
 import com.joao.depguard.server.security.JwtUtil;
+import com.joao.depguard.server.security.RateLimitFilter;
 import com.joao.depguard.server.security.UserDetailsServiceImpl;
 import com.joao.depguard.server.service.ApiKeyService;
+import com.joao.depguard.server.service.RateLimitService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -31,15 +33,18 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsServiceImpl;
     private final ApiKeyService apiKeyService;
+    private final RateLimitService rateLimitService;
     private final PasswordEncoder passwordEncoder;
 
     public SecurityConfig(JwtUtil jwtUtil,
                            UserDetailsServiceImpl userDetailsServiceImpl,
                            ApiKeyService apiKeyService,
+                           RateLimitService rateLimitService,
                            PasswordEncoder passwordEncoder) {
         this.jwtUtil = jwtUtil;
         this.userDetailsServiceImpl = userDetailsServiceImpl;
         this.apiKeyService = apiKeyService;
+        this.rateLimitService = rateLimitService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -55,6 +60,11 @@ public class SecurityConfig {
     @Bean
     public ApiKeyAuthFilter apiKeyAuthFilter() {
         return new ApiKeyAuthFilter(apiKeyService);
+    }
+
+    @Bean
+    public RateLimitFilter rateLimitFilter() {
+        return new RateLimitFilter(rateLimitService);
     }
 
     @Bean
@@ -74,7 +84,9 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 // ApiKeyAuthFilter antes do JWT — X-Api-Key é processado primeiro
                 .addFilterBefore(apiKeyAuthFilter(), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class)
+                // depois do JWT: já sabe o Role do principal pra resolver o RPM certo
+                .addFilterAfter(rateLimitFilter(), JwtAuthFilter.class);
 
         return http.build();
     }
