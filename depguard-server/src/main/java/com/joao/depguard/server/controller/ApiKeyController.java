@@ -18,7 +18,7 @@ import java.util.UUID;
 
 /** CRUD de API keys. Só acessível via JWT (não faz sentido criar key com key). */
 @RestController
-@RequestMapping("/api-keys")
+@RequestMapping("/api/v1/api-keys")
 public class ApiKeyController {
 
     private final ApiKeyService apiKeyService;
