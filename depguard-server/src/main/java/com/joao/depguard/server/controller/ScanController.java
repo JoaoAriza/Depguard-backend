@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.file.Path;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -47,6 +48,11 @@ public class ScanController {
     @GetMapping("/scans/{id}")
     public ScanStatusDto status(@PathVariable UUID id) {
         return ScanStatusDto.from(scanService.getOrThrow(id));
+    }
+
+    @GetMapping("/projects/{projectId}/scans")
+    public List<ScanStatusDto> listByProject(@PathVariable UUID projectId) {
+        return scanService.listByProject(projectId).stream().map(ScanStatusDto::from).toList();
     }
 
     /** SBOM CycloneDX salvo verbatim no scan (não regenerado — evita qualquer risco de drift). */

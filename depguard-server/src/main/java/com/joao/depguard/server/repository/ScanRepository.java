@@ -5,6 +5,7 @@ import com.joao.depguard.server.model.Scan;
 import com.joao.depguard.server.model.ScanStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +18,6 @@ public interface ScanRepository extends JpaRepository<Scan, UUID> {
      * existir.
      */
     Optional<Scan> findFirstByProjectAndStatusOrderByFinishedAtDesc(Project project, ScanStatus status);
+
+    List<Scan> findByProjectOrderByCreatedAtDesc(Project project);
 }

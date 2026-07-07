@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -52,6 +54,7 @@ public class ScanService {
                 .trigger(trigger)
                 .status(ScanStatus.QUEUED)
                 .partial(false)
+                .createdAt(LocalDateTime.now())
                 .build();
         UUID scanId = scanRepository.save(scan).getId();
 
@@ -62,5 +65,11 @@ public class ScanService {
     public Scan getOrThrow(UUID scanId) {
         return scanRepository.findById(scanId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Scan não encontrado."));
+    }
+
+    public List<Scan> listByProject(UUID projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado."));
+        return scanRepository.findByProjectOrderByCreatedAtDesc(project);
     }
 }

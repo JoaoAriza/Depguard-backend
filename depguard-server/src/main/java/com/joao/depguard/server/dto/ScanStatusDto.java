@@ -7,11 +7,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record ScanStatusDto(
-        UUID id, ScanStatus status, boolean partial,
+        UUID id, ScanStatus status, boolean partial, LocalDateTime createdAt,
         LocalDateTime startedAt, LocalDateTime finishedAt, String summary
 ) {
     public static ScanStatusDto from(Scan s) {
-        return new ScanStatusDto(s.getId(), s.getStatus(), s.isPartial(),
+        return new ScanStatusDto(s.getId(), s.getStatus(), s.isPartial(), s.getCreatedAt(),
                 s.getStartedAt(), s.getFinishedAt(), s.getSummary());
     }
 }

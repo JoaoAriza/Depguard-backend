@@ -55,6 +55,10 @@ public class Scan {
     @Column(nullable = false)
     private boolean partial;
 
+    /** Diferente de startedAt/finishedAt: preenchido já no QUEUED, nunca nulo. */
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
     private LocalDateTime startedAt;
 
     private LocalDateTime finishedAt;
