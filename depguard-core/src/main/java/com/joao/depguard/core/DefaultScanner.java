@@ -9,6 +9,8 @@ import com.joao.depguard.core.deps.osv.OsvApi;
 import com.joao.depguard.core.deps.osv.OsvClient;
 import com.joao.depguard.core.deps.osv.OsvVulnerabilityScanner;
 import com.joao.depguard.core.deps.priority.ExploitabilityEnricher;
+import com.joao.depguard.core.deps.pypi.PoetryLockParser;
+import com.joao.depguard.core.deps.pypi.RequirementsTxtParser;
 import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.ScanMeta;
@@ -21,6 +23,7 @@ import com.joao.depguard.core.secrets.WorkingTreeSecretScanner;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,14 +32,18 @@ import java.util.Set;
  * Implementação de referência do {@link Scanner}, usada pela CLI e pelo
  * worker do servidor.
  *
- * <p>MVP (docs/architecture.md §8, passos 1-5): Engine A cobre apenas npm via
- * {@code package-lock.json} na raiz do repositório; Engine B cobre apenas o
- * modo {@link SecretScanMode#WORKING_TREE}. Histórico git (Passo 9) ainda não
- * está ligado aqui. EPSS/KEV (Fase 1) já está.
+ * <p>Engine A (Fase 1): npm via {@code package-lock.json} e PyPI via
+ * {@code poetry.lock} (caminho feliz) ou {@code requirements.txt} (fallback
+ * best-effort, sempre marca {@code partial}) — docs/architecture.md §2.1.
+ * Maven fica de fora do MVP (sem lockfile próprio — ver docs §2.1). Engine B
+ * cobre apenas o modo {@link SecretScanMode#WORKING_TREE}; histórico git é
+ * o Passo 9, ainda não ligado aqui.
  */
 public class DefaultScanner implements Scanner {
 
-    private final NpmLockfileParser lockfileParser = new NpmLockfileParser();
+    private final NpmLockfileParser npmLockfileParser = new NpmLockfileParser();
+    private final PoetryLockParser poetryLockParser = new PoetryLockParser();
+    private final RequirementsTxtParser requirementsTxtParser = new RequirementsTxtParser();
     private final WorkingTreeSecretScanner secretScanner = new WorkingTreeSecretScanner();
     private final OsvApi osvApi;
     private final EpssApi epssApi;
@@ -62,21 +69,37 @@ public class DefaultScanner implements Scanner {
         long startNanos = System.nanoTime();
         Set<String> ecosystems = new LinkedHashSet<>();
 
-        List<Component> components = List.of();
+        List<Component> components = new ArrayList<>();
         List<VulnFinding> vulnFindings = List.of();
         boolean partial = false;
 
         if (request.engines().contains(Engine.DEPENDENCIES)) {
-            Path lockfile = request.repoRoot().resolve("package-lock.json");
-            if (Files.isRegularFile(lockfile)) {
-                components = lockfileParser.parse(lockfile);
+            Path npmLock = request.repoRoot().resolve("package-lock.json");
+            if (Files.isRegularFile(npmLock)) {
+                components.addAll(npmLockfileParser.parse(npmLock));
                 ecosystems.add("npm");
+            } else {
+                partial = true; // sem lockfile npm: resultado incompleto (docs §2.1)
+            }
+
+            Path poetryLock = request.repoRoot().resolve("poetry.lock");
+            Path requirementsTxt = request.repoRoot().resolve("requirements.txt");
+            if (Files.isRegularFile(poetryLock)) {
+                components.addAll(poetryLockParser.parse(poetryLock));
+                ecosystems.add("pypi");
+            } else if (Files.isRegularFile(requirementsTxt)) {
+                components.addAll(requirementsTxtParser.parse(requirementsTxt));
+                ecosystems.add("pypi");
+                // requirements.txt não garante fechamento transitivo completo
+                // (só pins exatos são extraídos) — sempre parcial (docs §2.1).
+                partial = true;
+            }
+
+            if (!components.isEmpty()) {
                 vulnFindings = new OsvVulnerabilityScanner(osvApi).scan(components);
                 if (request.enrichExploitability() && !vulnFindings.isEmpty()) {
                     vulnFindings = new ExploitabilityEnricher(epssApi, kevApi).enrich(vulnFindings);
                 }
-            } else {
-                partial = true; // sem lockfile: resultado incompleto (docs §2.1)
             }
         }
 

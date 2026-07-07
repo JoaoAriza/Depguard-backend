@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Implementação de rede do {@link OsvApi} sobre api.osv.dev usando o
@@ -75,9 +76,16 @@ public class OsvClient implements OsvApi {
         return get("/v1/vulns/" + id);
     }
 
-    /** OSV usa "npm" para o ecossistema Node; ponto de tradução para futuros ecossistemas. */
+    /**
+     * {@code Component.ecosystem} usa strings estilo purl (minúsculo — "npm",
+     * "pypi"), mas a API do OSV exige a capitalização própria dela pra cada
+     * ecossistema (confirmado batendo na API real: "pypi" devolve
+     * {@code {"code":3,"message":"Invalid ecosystem."}}, só "PyPI" funciona).
+     */
+    private static final Map<String, String> OSV_ECOSYSTEM_NAMES = Map.of("pypi", "PyPI");
+
     private String osvEcosystem(String ecosystem) {
-        return ecosystem;
+        return OSV_ECOSYSTEM_NAMES.getOrDefault(ecosystem, ecosystem);
     }
 
     private JsonNode post(String path, JsonNode body) {

@@ -94,6 +94,63 @@ class DefaultScannerTest {
     }
 
     @Test
+    void combinaComponentesDeNpmEPypiNoMesmoScan(@TempDir Path repo) throws IOException {
+        Files.writeString(repo.resolve("package-lock.json"), """
+                {
+                  "name": "demo", "version": "1.0.0", "lockfileVersion": 3, "requires": true,
+                  "packages": {
+                    "": { "dependencies": { "lodash": "^4.17.20" } },
+                    "node_modules/lodash": { "version": "4.17.20" }
+                  }
+                }
+                """);
+        Files.writeString(repo.resolve("requirements.txt"), "flask==2.0.1\n");
+
+        DefaultScanner scanner = new DefaultScanner(fakeOsvApi(null));
+        ScanRequest request = new ScanRequest(
+                repo, Set.of(Engine.DEPENDENCIES),
+                SecretScanMode.WORKING_TREE, Allowlist.empty(), false);
+
+        ScanResult result = scanner.scan(request);
+
+        assertThat(result.components()).hasSize(2);
+        assertThat(result.meta().ecosystems()).containsExactlyInAnyOrder("npm", "pypi");
+        // npm tem lockfile completo, mas requirements.txt é sempre parcial —
+        // o resultado combinado herda o "pior caso" das duas engines.
+        assertThat(result.meta().partial()).isTrue();
+    }
+
+    @Test
+    void poetryLockGeraComponentesCompletosMesmoQuePartialVenhaDoNpmAusente(@TempDir Path repo)
+            throws IOException {
+        Files.writeString(repo.resolve("poetry.lock"), """
+                [[package]]
+                name = "flask"
+                version = "2.0.1"
+                optional = false
+                python-versions = ">=3.7"
+
+                [metadata]
+                lock-version = "2.0"
+                python-versions = "^3.9"
+                content-hash = "x"
+                """);
+
+        DefaultScanner scanner = new DefaultScanner(fakeOsvApi(null));
+        ScanRequest request = new ScanRequest(
+                repo, Set.of(Engine.DEPENDENCIES),
+                SecretScanMode.WORKING_TREE, Allowlist.empty(), false);
+
+        ScanResult result = scanner.scan(request);
+
+        assertThat(result.components()).hasSize(1);
+        assertThat(result.meta().ecosystems()).containsExactly("pypi");
+        // poetry.lock (like package-lock.json) é o caminho feliz com dados completos;
+        // só o npm (ausente aqui) contribui partial=true nesse cenário.
+        assertThat(result.meta().partial()).isTrue();
+    }
+
+    @Test
     void engineDesligadaNaoRodaNemDaErro(@TempDir Path repo) throws IOException {
         Files.writeString(repo.resolve("config.txt"), "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
 

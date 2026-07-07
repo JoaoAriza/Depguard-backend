@@ -27,6 +27,7 @@
         <cyclonedx.version>12.2.0</cyclonedx.version>
         <jjwt.version>0.12.6</jjwt.version>
         <bucket4j.version>8.10.1</bucket4j.version>
+        <tomlj.version>1.1.1</tomlj.version>
     </properties>
 
     <modules>
@@ -76,6 +77,12 @@
                 <groupId>com.bucket4j</groupId>
                 <artifactId>bucket4j-core</artifactId>
                 <version>${bucket4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.tomlj</groupId>
+                <artifactId>tomlj</artifactId>
+                <version>${tomlj.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
