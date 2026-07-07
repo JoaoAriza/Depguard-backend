@@ -2,8 +2,17 @@ package com.joao.depguard.core.report;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.joao.depguard.core.model.BumpType;
+import com.joao.depguard.core.model.Component;
+import com.joao.depguard.core.model.ScanMeta;
+import com.joao.depguard.core.model.ScanResult;
+import com.joao.depguard.core.model.Severity;
+import com.joao.depguard.core.model.VulnFinding;
 import com.joao.depguard.core.testsupport.FakeSecrets;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,6 +56,25 @@ class SarifWriterTest {
                 .doesNotContain(FakeSecrets.AWS_ACCESS_KEY);
         assertThat(secretResult.get("partialFingerprints").get("depguard").asText())
                 .isEqualTo("secret-fingerprint-xyz");
+    }
+
+    @Test
+    void kevListadoForcaLevelErrorMesmoComSeveridadeBaixa() throws Exception {
+        VulnFinding lowButKev = new VulnFinding(
+                "kev-fingerprint", "GHSA-yyyy", List.of("CVE-2021-44228"), Severity.LOW,
+                "CVSS:3.1/AV:N", 0.999, true, "pkg:npm/log4shell@1.0.0", "2.0.0", BumpType.MAJOR);
+        ScanResult result = new ScanResult(
+                List.of(new Component("npm", "log4shell", "1.0.0", "pkg:npm/log4shell@1.0.0",
+                        true, 0, List.of())),
+                List.of(lowButKev), List.of(), new ScanMeta(false, Set.of("npm"), 1L));
+
+        JsonNode root = mapper.readTree(writer.write(result));
+        JsonNode vulnResult = root.get("runs").get(0).get("results").get(0);
+
+        assertThat(vulnResult.get("level").asText()).isEqualTo("error");
+        assertThat(vulnResult.get("message").get("text").asText())
+                .contains("KEV")
+                .contains("EPSS: 99.9%");
     }
 
     private boolean anyRuleId(JsonNode rules, String id) {

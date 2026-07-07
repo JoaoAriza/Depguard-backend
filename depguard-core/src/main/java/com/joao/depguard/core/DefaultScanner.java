@@ -1,9 +1,14 @@
 package com.joao.depguard.core;
 
 import com.joao.depguard.core.deps.NpmLockfileParser;
+import com.joao.depguard.core.deps.epss.EpssApi;
+import com.joao.depguard.core.deps.epss.EpssClient;
+import com.joao.depguard.core.deps.kev.KevApi;
+import com.joao.depguard.core.deps.kev.KevClient;
 import com.joao.depguard.core.deps.osv.OsvApi;
 import com.joao.depguard.core.deps.osv.OsvClient;
 import com.joao.depguard.core.deps.osv.OsvVulnerabilityScanner;
+import com.joao.depguard.core.deps.priority.ExploitabilityEnricher;
 import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.ScanMeta;
@@ -21,27 +26,35 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Implementação de referência do {@link Scanner}, usada pela CLI e (depois)
- * pelo worker do servidor.
+ * Implementação de referência do {@link Scanner}, usada pela CLI e pelo
+ * worker do servidor.
  *
  * <p>MVP (docs/architecture.md §8, passos 1-5): Engine A cobre apenas npm via
  * {@code package-lock.json} na raiz do repositório; Engine B cobre apenas o
- * modo {@link SecretScanMode#WORKING_TREE}. Histórico git (Passo 9), múltiplos
- * manifestos e EPSS/KEV (Passo 10) ainda não estão ligados aqui.
+ * modo {@link SecretScanMode#WORKING_TREE}. Histórico git (Passo 9) ainda não
+ * está ligado aqui. EPSS/KEV (Fase 1) já está.
  */
 public class DefaultScanner implements Scanner {
 
     private final NpmLockfileParser lockfileParser = new NpmLockfileParser();
     private final WorkingTreeSecretScanner secretScanner = new WorkingTreeSecretScanner();
     private final OsvApi osvApi;
+    private final EpssApi epssApi;
+    private final KevApi kevApi;
 
     public DefaultScanner() {
-        this(new OsvClient());
+        this(new OsvClient(), new EpssClient(), new KevClient());
     }
 
     /** Permite injetar um {@link OsvApi} fake em testes, sem tocar a rede. */
     public DefaultScanner(OsvApi osvApi) {
+        this(osvApi, new EpssClient(), new KevClient());
+    }
+
+    public DefaultScanner(OsvApi osvApi, EpssApi epssApi, KevApi kevApi) {
         this.osvApi = osvApi;
+        this.epssApi = epssApi;
+        this.kevApi = kevApi;
     }
 
     @Override
@@ -59,6 +72,9 @@ public class DefaultScanner implements Scanner {
                 components = lockfileParser.parse(lockfile);
                 ecosystems.add("npm");
                 vulnFindings = new OsvVulnerabilityScanner(osvApi).scan(components);
+                if (request.enrichExploitability() && !vulnFindings.isEmpty()) {
+                    vulnFindings = new ExploitabilityEnricher(epssApi, kevApi).enrich(vulnFindings);
+                }
             } else {
                 partial = true; // sem lockfile: resultado incompleto (docs §2.1)
             }

@@ -64,8 +64,11 @@ public class ScanExecutionService {
     public void executeAsync(UUID scanId, Path repoRoot, Set<Engine> engines) {
         markRunning(scanId);
         try {
+            // Diferente da CLI (opt-in via --enrich, pra iteração local rápida):
+            // scans do servidor alimentam triagem/dashboard, onde priorização por
+            // EPSS/KEV importa mais que os ~1-2s extras de rede.
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, SecretScanMode.WORKING_TREE, Allowlist.empty(), false);
+                    repoRoot, engines, SecretScanMode.WORKING_TREE, Allowlist.empty(), true);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
         } catch (Exception e) {

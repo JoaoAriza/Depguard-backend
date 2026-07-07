@@ -13,6 +13,7 @@ import com.joao.depguard.core.secrets.SecretRules;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -66,14 +67,21 @@ public class SarifWriter {
     private ObjectNode vulnResult(VulnFinding f) {
         ObjectNode node = mapper.createObjectNode();
         node.put("ruleId", RULE_VULN_ID);
-        node.put("level", levelFor(f.severity()));
+        // KEV (exploração ativa confirmada) sempre "error", mesmo se a severidade
+        // CVSS for baixa — é o próprio ponto de priorizar por explorabilidade,
+        // não só CVSS (docs/architecture.md §2.4).
+        node.put("level", f.kevListed() ? "error" : levelFor(f.severity()));
 
         String id = f.aliases().isEmpty() ? f.osvId() : f.aliases().get(0);
         String fix = f.fixedVersion() != null
                 ? " — corrigido em " + f.fixedVersion()
                 : " — sem correção conhecida";
+        String kevTag = f.kevListed() ? " [KEV: exploração ativa conhecida]" : "";
+        String epssTag = f.epssScore() != null
+                ? String.format(Locale.ROOT, " [EPSS: %.1f%%]", f.epssScore() * 100)
+                : "";
         node.putObject("message").put("text",
-                "Dependência vulnerável: " + f.affectedPurl() + " — " + id + fix);
+                "Dependência vulnerável: " + f.affectedPurl() + " — " + id + fix + kevTag + epssTag);
 
         ArrayNode locations = node.putArray("locations");
         ObjectNode location = locations.addObject().putObject("physicalLocation");

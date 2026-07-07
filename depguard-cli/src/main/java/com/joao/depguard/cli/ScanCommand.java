@@ -40,6 +40,9 @@ public class ScanCommand implements Callable<Integer> {
     @Option(names = "--secrets", description = "Habilita a engine de segredos.")
     boolean secretsFlag;
 
+    @Option(names = "--enrich", description = "Enriquece vulnerabilidades com EPSS/KEV (2 chamadas de rede extras).")
+    boolean enrichFlag;
+
     @Option(names = "--out", description = "Diretório de saída dos relatórios. Padrão: o próprio repositório.")
     Path outDir;
 
@@ -65,7 +68,7 @@ public class ScanCommand implements Callable<Integer> {
             Allowlist allowlist = new Allowlist(
                     new LinkedHashSet<>(allowPaths), new LinkedHashSet<>(allowValueRegexes), Set.of());
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, SecretScanMode.WORKING_TREE, allowlist, false);
+                    repoRoot, engines, SecretScanMode.WORKING_TREE, allowlist, enrichFlag);
 
             Scanner scanner = new DefaultScanner();
             ScanResult result = scanner.scan(request);
