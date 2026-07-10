@@ -16,6 +16,11 @@ jwt:
   secret: ${JWT_SECRET:change-this-secret-in-production-min-32chars!!}
   expiration-ms: 86400000
 
+# github.app.id / private-key-path / webhook-secret: sem default sensato pra
+# nenhum dos três, então NÃO declarados aqui — @ConfigurationProperties já
+# capta -Dgithub.app.* / env vars automaticamente, e a ausência falha
+# explícito no primeiro uso em vez de seguir silenciosamente com vazio.
+
 server:
   # 8081 para não colidir com o CyberAudit (8080) ao rodar lado a lado
   port: 8081

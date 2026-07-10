@@ -49,6 +49,14 @@ public class Project {
 
     private String defaultBranch;
 
+    /**
+     * ID da instalação do GitHub App (não do App em si) que dá acesso a este
+     * repositório — preenchido no primeiro webhook recebido para ele.
+     * Necessário pra trocar o JWT do App por um token de instalação (a
+     * credencial usada pra chamar a API do GitHub em nome do repositório).
+     */
+    private Long githubInstallationId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 }

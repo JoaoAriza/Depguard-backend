@@ -62,6 +62,18 @@ public class ScanExecutionService {
 
     @Async
     public void executeAsync(UUID scanId, Path repoRoot, Set<Engine> engines) {
+        runSync(scanId, repoRoot, engines);
+    }
+
+    /**
+     * Mesma lógica de {@link #executeAsync}, mas SEM {@code @Async} — pra
+     * quem já está rodando numa thread de background própria (ex.:
+     * {@code GithubPullRequestScanOrchestrator}) e só precisaria de uma
+     * segunda camada de {@code @Async} por acidente, sem ganho nenhum.
+     *
+     * @return true se o scan terminou com sucesso (status DONE)
+     */
+    public boolean runSync(UUID scanId, Path repoRoot, Set<Engine> engines) {
         markRunning(scanId);
         try {
             // Diferente da CLI (opt-in via --enrich, pra iteração local rápida):
@@ -71,8 +83,10 @@ public class ScanExecutionService {
                     repoRoot, engines, SecretScanMode.WORKING_TREE, Allowlist.empty(), true);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
+            return true;
         } catch (Exception e) {
             markFailed(scanId);
+            return false;
         }
     }
 

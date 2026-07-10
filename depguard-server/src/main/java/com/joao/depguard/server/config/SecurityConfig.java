@@ -103,6 +103,9 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // sem JWT/API key — a assinatura HMAC é a própria autenticação
+                        // (GithubWebhookSignatureVerifier, verificada no controller)
+                        .requestMatchers("/api/v1/webhooks/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // defesa extra: exceções não tratadas por GlobalExceptionHandler
                         // ainda cairiam no forward padrão do Boot para /error

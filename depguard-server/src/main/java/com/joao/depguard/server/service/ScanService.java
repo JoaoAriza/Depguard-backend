@@ -49,6 +49,17 @@ public class ScanService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado."));
 
+        UUID scanId = createQueued(project, trigger);
+        executionService.executeAsync(scanId, repoRoot, engines);
+        return scanId;
+    }
+
+    /**
+     * Só cria a linha QUEUED e commita — não dispara nenhum scan. Usado pelo
+     * fluxo do GitHub App, que ainda precisa clonar o repo (fora deste
+     * método) antes de rodar {@code ScanExecutionService.runSync}.
+     */
+    public UUID createQueued(Project project, ScanTrigger trigger) {
         Scan scan = Scan.builder()
                 .project(project)
                 .trigger(trigger)
@@ -56,10 +67,7 @@ public class ScanService {
                 .partial(false)
                 .createdAt(LocalDateTime.now())
                 .build();
-        UUID scanId = scanRepository.save(scan).getId();
-
-        executionService.executeAsync(scanId, repoRoot, engines);
-        return scanId;
+        return scanRepository.save(scan).getId();
     }
 
     public Scan getOrThrow(UUID scanId) {
