@@ -22,8 +22,8 @@ jwt:
 # explícito no primeiro uso em vez de seguir silenciosamente com vazio.
 
 server:
-  # 8081 para não colidir com o CyberAudit (8080) ao rodar lado a lado
-  port: 8081
+  # 8082 para não colidir com o CyberAudit (8080) nem com outros projetos locais
+  port: 8082
 
 management:
   endpoints:
