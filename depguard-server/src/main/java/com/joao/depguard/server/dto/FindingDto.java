@@ -9,5 +9,5 @@ import java.util.UUID;
 
 public record FindingDto(
         UUID id, FindingType type, Severity severity, String fingerprint,
-        JsonNode detail, TriageStatus triageStatus
+        JsonNode detail, TriageStatus triageStatus, String triageNote
 ) {}

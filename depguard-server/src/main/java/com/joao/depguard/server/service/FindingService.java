@@ -74,19 +74,20 @@ public class FindingService {
 
     private List<FindingDto> assemble(Project project, List<Finding> findings, TriageStatus statusFilter) {
         List<String> fingerprints = findings.stream().map(Finding::getFingerprint).toList();
-        Map<String, TriageStatus> triageByFingerprint = new HashMap<>();
+        Map<String, FindingTriage> triageByFingerprint = new HashMap<>();
         for (FindingTriage t : findingTriageRepository.findByProjectAndFingerprintIn(project, fingerprints)) {
-            triageByFingerprint.put(t.getFingerprint(), t.getStatus());
+            triageByFingerprint.put(t.getFingerprint(), t);
         }
 
         List<FindingDto> result = new ArrayList<>();
         for (Finding f : findings) {
-            TriageStatus triageStatus = triageByFingerprint.getOrDefault(f.getFingerprint(), TriageStatus.OPEN);
+            FindingTriage triage = triageByFingerprint.get(f.getFingerprint());
+            TriageStatus triageStatus = triage != null ? triage.getStatus() : TriageStatus.OPEN;
             if (statusFilter != null && statusFilter != triageStatus) {
                 continue;
             }
             result.add(new FindingDto(f.getId(), f.getType(), f.getSeverity(), f.getFingerprint(),
-                    readTree(f.getDetail()), triageStatus));
+                    readTree(f.getDetail()), triageStatus, triage != null ? triage.getNote() : null));
         }
         return result;
     }
