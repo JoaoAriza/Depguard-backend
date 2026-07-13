@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.joao.depguard.core.model.FindingType;
 import com.joao.depguard.core.model.Severity;
 import com.joao.depguard.server.dto.FindingDto;
+import com.joao.depguard.server.model.AppUser;
 import com.joao.depguard.server.model.Finding;
 import com.joao.depguard.server.model.FindingTriage;
 import com.joao.depguard.server.model.Project;
@@ -86,8 +87,10 @@ public class FindingService {
             if (statusFilter != null && statusFilter != triageStatus) {
                 continue;
             }
+            AppUser assignee = triage != null ? triage.getAssignee() : null;
             result.add(new FindingDto(f.getId(), f.getType(), f.getSeverity(), f.getFingerprint(),
-                    readTree(f.getDetail()), triageStatus, triage != null ? triage.getNote() : null));
+                    readTree(f.getDetail()), triageStatus, triage != null ? triage.getNote() : null,
+                    assignee != null ? assignee.getId() : null, assignee != null ? assignee.getName() : null));
         }
         return result;
     }

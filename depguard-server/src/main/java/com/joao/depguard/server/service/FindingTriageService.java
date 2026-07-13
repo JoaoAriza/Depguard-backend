@@ -49,11 +49,15 @@ public class FindingTriageService {
         triage.setNote(req.note());
         triage.setUpdatedAt(LocalDateTime.now());
 
+        // Sobrescreve sempre (null limpa o responsável) — mesma semântica de
+        // status/note, pra ficar consistente: quem chama sempre manda os três
+        // campos com o valor atual dos que não está mudando (ver frontend).
+        AppUser assignee = null;
         if (req.assigneeId() != null) {
-            AppUser assignee = appUserRepository.findById(req.assigneeId())
+            assignee = appUserRepository.findById(req.assigneeId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado."));
-            triage.setAssignee(assignee);
         }
+        triage.setAssignee(assignee);
 
         return findingTriageRepository.save(triage);
     }
