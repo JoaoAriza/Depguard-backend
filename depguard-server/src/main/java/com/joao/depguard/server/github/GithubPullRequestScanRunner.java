@@ -3,10 +3,9 @@ package com.joao.depguard.server.github;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.FindingType;
 import com.joao.depguard.core.model.Severity;
-import com.joao.depguard.server.model.Finding;
-import com.joao.depguard.server.model.Scan;
-import com.joao.depguard.server.repository.FindingRepository;
-import com.joao.depguard.server.repository.ScanRepository;
+import com.joao.depguard.server.dto.FindingDto;
+import com.joao.depguard.server.model.TriageStatus;
+import com.joao.depguard.server.service.FindingService;
 import com.joao.depguard.server.service.ScanExecutionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,21 +28,18 @@ public class GithubPullRequestScanRunner {
 
     private static final Logger log = LoggerFactory.getLogger(GithubPullRequestScanRunner.class);
 
-    private final ScanRepository scanRepository;
-    private final FindingRepository findingRepository;
+    private final FindingService findingService;
     private final ScanExecutionService scanExecutionService;
     private final GithubRepoCloner repoCloner;
     private final GithubCheckRunClient checkRunClient;
     private final GithubPullRequestCommentClient commentClient;
 
-    public GithubPullRequestScanRunner(ScanRepository scanRepository,
-                                        FindingRepository findingRepository,
+    public GithubPullRequestScanRunner(FindingService findingService,
                                         ScanExecutionService scanExecutionService,
                                         GithubRepoCloner repoCloner,
                                         GithubCheckRunClient checkRunClient,
                                         GithubPullRequestCommentClient commentClient) {
-        this.scanRepository = scanRepository;
-        this.findingRepository = findingRepository;
+        this.findingService = findingService;
         this.scanExecutionService = scanExecutionService;
         this.repoCloner = repoCloner;
         this.checkRunClient = checkRunClient;
@@ -66,8 +62,7 @@ public class GithubPullRequestScanRunner {
                 return;
             }
 
-            Scan scan = scanRepository.findById(scanId).orElseThrow();
-            List<Finding> findings = findingRepository.findByScan(scan);
+            List<FindingDto> findings = findingService.listByScan(scanId, null, null, null);
             report(token, repoFullName, checkRunId, prNumber, findings);
         } catch (Exception e) {
             log.error("Falha processando PR #{} de {}", prNumber, repoFullName, e);
@@ -86,13 +81,22 @@ public class GithubPullRequestScanRunner {
      * políticas de verdade, configurável por projeto (regras já persistidas
      * em {@code Policy} desde o Passo 7), é Fase 2 — aqui é só um default
      * fixo pra já ter um sinal de bloqueio funcionando.
+     *
+     * FALSE_POSITIVE/ACCEPTED_RISK não contam pro bloqueio — já foram
+     * triados por um humano; contar mesmo assim tornaria a triagem inútil
+     * pro caso de uso que mais importa (liberar o merge).
      */
-    private void report(String token, String repoFullName, long checkRunId, int prNumber, List<Finding> findings) {
-        long secretCount = findings.stream().filter(f -> f.getType() == FindingType.SECRET).count();
-        long vulnCount = findings.stream().filter(f -> f.getType() == FindingType.DEPENDENCY_VULN).count();
-        long criticalOrHigh = findings.stream()
-                .filter(f -> f.getType() == FindingType.DEPENDENCY_VULN)
-                .filter(f -> f.getSeverity() == Severity.CRITICAL || f.getSeverity() == Severity.HIGH)
+    private void report(String token, String repoFullName, long checkRunId, int prNumber, List<FindingDto> findings) {
+        List<FindingDto> actionable = findings.stream()
+                .filter(f -> f.triageStatus() != TriageStatus.FALSE_POSITIVE
+                        && f.triageStatus() != TriageStatus.ACCEPTED_RISK)
+                .toList();
+
+        long secretCount = actionable.stream().filter(f -> f.type() == FindingType.SECRET).count();
+        long vulnCount = actionable.stream().filter(f -> f.type() == FindingType.DEPENDENCY_VULN).count();
+        long criticalOrHigh = actionable.stream()
+                .filter(f -> f.type() == FindingType.DEPENDENCY_VULN)
+                .filter(f -> f.severity() == Severity.CRITICAL || f.severity() == Severity.HIGH)
                 .count();
 
         boolean blocking = secretCount > 0 || criticalOrHigh > 0;

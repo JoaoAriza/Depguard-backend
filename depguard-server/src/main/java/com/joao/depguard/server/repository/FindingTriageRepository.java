@@ -2,6 +2,7 @@ package com.joao.depguard.server.repository;
 
 import com.joao.depguard.server.model.FindingTriage;
 import com.joao.depguard.server.model.Project;
+import com.joao.depguard.server.model.TriageStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -13,4 +14,6 @@ public interface FindingTriageRepository extends JpaRepository<FindingTriage, UU
     Optional<FindingTriage> findByProjectAndFingerprint(Project project, String fingerprint);
 
     List<FindingTriage> findByProjectAndFingerprintIn(Project project, List<String> fingerprints);
+
+    List<FindingTriage> findByProjectAndStatus(Project project, TriageStatus status);
 }

@@ -13,11 +13,15 @@ import com.joao.depguard.core.model.SecretScanMode;
 import com.joao.depguard.core.model.VulnFinding;
 import com.joao.depguard.core.report.CycloneDxWriter;
 import com.joao.depguard.server.model.Finding;
+import com.joao.depguard.server.model.FindingTriage;
+import com.joao.depguard.server.model.Project;
 import com.joao.depguard.server.model.Sbom;
 import com.joao.depguard.server.model.Scan;
 import com.joao.depguard.server.model.ScanComponent;
 import com.joao.depguard.server.model.ScanStatus;
+import com.joao.depguard.server.model.TriageStatus;
 import com.joao.depguard.server.repository.FindingRepository;
+import com.joao.depguard.server.repository.FindingTriageRepository;
 import com.joao.depguard.server.repository.SbomRepository;
 import com.joao.depguard.server.repository.ScanComponentRepository;
 import com.joao.depguard.server.repository.ScanRepository;
@@ -30,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Executa o scan em background e persiste o resultado. Fica em bean
@@ -43,6 +48,7 @@ public class ScanExecutionService {
     private final ScanRepository scanRepository;
     private final ScanComponentRepository scanComponentRepository;
     private final FindingRepository findingRepository;
+    private final FindingTriageRepository findingTriageRepository;
     private final SbomRepository sbomRepository;
     private final Scanner scanner;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -51,11 +57,13 @@ public class ScanExecutionService {
     public ScanExecutionService(ScanRepository scanRepository,
                                  ScanComponentRepository scanComponentRepository,
                                  FindingRepository findingRepository,
+                                 FindingTriageRepository findingTriageRepository,
                                  SbomRepository sbomRepository,
                                  Scanner scanner) {
         this.scanRepository = scanRepository;
         this.scanComponentRepository = scanComponentRepository;
         this.findingRepository = findingRepository;
+        this.findingTriageRepository = findingTriageRepository;
         this.sbomRepository = sbomRepository;
         this.scanner = scanner;
     }
@@ -74,13 +82,13 @@ public class ScanExecutionService {
      * @return true se o scan terminou com sucesso (status DONE)
      */
     public boolean runSync(UUID scanId, Path repoRoot, Set<Engine> engines) {
-        markRunning(scanId);
+        Project project = markRunning(scanId);
         try {
             // Diferente da CLI (opt-in via --enrich, pra iteração local rápida):
             // scans do servidor alimentam triagem/dashboard, onde priorização por
             // EPSS/KEV importa mais que os ~1-2s extras de rede.
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, SecretScanMode.WORKING_TREE, Allowlist.empty(), true);
+                    repoRoot, engines, SecretScanMode.WORKING_TREE, buildAllowlist(project), true);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
             return true;
@@ -90,12 +98,28 @@ public class ScanExecutionService {
         }
     }
 
+    /**
+     * Segredos marcados FALSE_POSITIVE não voltam a aparecer nos próximos
+     * scans do mesmo projeto — reaproveita o {@code AllowlistMatcher} do core
+     * (fingerprint só, sem paths/regexes). Vulnerabilidades não passam por
+     * aqui: o scanner de dependências ainda não consulta Allowlist (só o de
+     * segredos faz isso hoje).
+     */
+    private Allowlist buildAllowlist(Project project) {
+        Set<String> fingerprints = findingTriageRepository.findByProjectAndStatus(project, TriageStatus.FALSE_POSITIVE)
+                .stream()
+                .map(FindingTriage::getFingerprint)
+                .collect(Collectors.toSet());
+        return new Allowlist(Set.of(), Set.of(), fingerprints);
+    }
+
     @Transactional
-    void markRunning(UUID scanId) {
+    Project markRunning(UUID scanId) {
         Scan scan = scanRepository.findById(scanId).orElseThrow();
         scan.setStatus(ScanStatus.RUNNING);
         scan.setStartedAt(LocalDateTime.now());
         scanRepository.save(scan);
+        return scan.getProject();
     }
 
     @Transactional
