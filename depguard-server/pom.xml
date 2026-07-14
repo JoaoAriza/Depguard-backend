@@ -73,6 +73,12 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Relatório PDF: fork da abordagem do CyberAudit (PDFBox de baixo nível, sem HTML intermediário) -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.joao.depguard</groupId>
             <artifactId>depguard-core</artifactId>

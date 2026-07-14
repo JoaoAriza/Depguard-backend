@@ -11,6 +11,7 @@ import com.joao.depguard.core.report.SarifWriter;
 import com.joao.depguard.server.model.Finding;
 import com.joao.depguard.server.model.Sbom;
 import com.joao.depguard.server.model.Scan;
+import com.joao.depguard.server.report.PdfReportService;
 import com.joao.depguard.server.repository.FindingRepository;
 import com.joao.depguard.server.repository.SbomRepository;
 import com.joao.depguard.server.repository.ScanComponentRepository;
@@ -37,6 +38,8 @@ public class ScanExportService {
     private final ScanComponentRepository scanComponentRepository;
     private final FindingRepository findingRepository;
     private final SbomRepository sbomRepository;
+    private final FindingService findingService;
+    private final PdfReportService pdfReportService;
     private final ObjectMapper mapper;
     private final SarifWriter sarifWriter = new SarifWriter();
 
@@ -44,11 +47,15 @@ public class ScanExportService {
                               ScanComponentRepository scanComponentRepository,
                               FindingRepository findingRepository,
                               SbomRepository sbomRepository,
+                              FindingService findingService,
+                              PdfReportService pdfReportService,
                               ObjectMapper mapper) {
         this.scanRepository = scanRepository;
         this.scanComponentRepository = scanComponentRepository;
         this.findingRepository = findingRepository;
         this.sbomRepository = sbomRepository;
+        this.findingService = findingService;
+        this.pdfReportService = pdfReportService;
         this.mapper = mapper;
     }
 
@@ -64,6 +71,12 @@ public class ScanExportService {
     public String sarif(UUID scanId) {
         Scan scan = getScanOrThrow(scanId);
         return sarifWriter.write(reconstruct(scan));
+    }
+
+    /** Reaproveita os mesmos FindingDto exibidos no dashboard — inclui triagem (status/nota/responsável). */
+    public byte[] pdf(UUID scanId) {
+        Scan scan = getScanOrThrow(scanId);
+        return pdfReportService.generate(scan, findingService.listByScan(scanId, null, null, null));
     }
 
     ScanResult reconstruct(Scan scan) {

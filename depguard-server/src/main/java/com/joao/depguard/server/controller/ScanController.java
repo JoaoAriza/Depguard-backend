@@ -6,8 +6,11 @@ import com.joao.depguard.server.dto.SubmitScanRequest;
 import com.joao.depguard.server.model.ScanTrigger;
 import com.joao.depguard.server.service.ScanExportService;
 import com.joao.depguard.server.service.ScanService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -69,5 +72,16 @@ public class ScanController {
     @GetMapping(value = "/scans/{id}/sarif", produces = MediaType.APPLICATION_JSON_VALUE)
     public String sarif(@PathVariable UUID id) {
         return scanExportService.sarif(id);
+    }
+
+    /** Relatório humano (PDFBox) — inclui triagem, ao contrário do SARIF/CycloneDX (formatos-padrão). */
+    @GetMapping(value = "/scans/{id}/report.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> pdf(@PathVariable UUID id) {
+        byte[] pdf = scanExportService.pdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename("depguard-scan-" + id + ".pdf").build().toString())
+                .body(pdf);
     }
 }
