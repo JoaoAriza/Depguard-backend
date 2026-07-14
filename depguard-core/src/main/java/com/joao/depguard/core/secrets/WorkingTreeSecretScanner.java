@@ -2,8 +2,6 @@ package com.joao.depguard.core.secrets;
 
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.SecretFinding;
-import com.joao.depguard.core.model.VerificationStatus;
-import com.joao.depguard.core.util.Fingerprints;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -11,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
 /**
@@ -24,15 +21,14 @@ public class WorkingTreeSecretScanner {
     private static final List<String> SKIP_DIR_NAMES =
             List.of(".git", "node_modules", "target", "dist", "build", ".idea", ".vscode");
 
-    private final List<SecretRule> rules;
-    private final GenericHighEntropyDetector genericDetector = new GenericHighEntropyDetector();
+    private final SecretLineScanner lineScanner;
 
     public WorkingTreeSecretScanner() {
         this(SecretRules.defaults());
     }
 
     public WorkingTreeSecretScanner(List<SecretRule> rules) {
-        this.rules = rules;
+        this.lineScanner = new SecretLineScanner(rules);
     }
 
     public List<SecretFinding> scan(Path repoRoot, Allowlist allowlist) {
@@ -79,55 +75,9 @@ public class WorkingTreeSecretScanner {
         }
 
         for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-
-            for (SecretRule rule : rules) {
-                Matcher m = rule.pattern().matcher(line);
-                while (m.find()) {
-                    String value = m.group();
-                    addFinding(findings, rule.id(), relative, i + 1, value,
-                            ShannonEntropy.of(value), allow);
-                }
-            }
-
-            for (GenericHighEntropyDetector.MatchCandidate c : genericDetector.find(line)) {
-                addFinding(findings, "DG-SECRET-GENERIC-HIGH-ENTROPY", relative, i + 1,
-                        c.value(), ShannonEntropy.of(c.value()), allow);
-            }
+            findings.addAll(lineScanner.scanLine(relative, i + 1, lines.get(i), allow));
         }
 
         return findings;
-    }
-
-    private void addFinding(List<SecretFinding> findings, String ruleId, Path relativePath,
-                             int line, String value, double entropy, AllowlistMatcher allow) {
-        if (PlaceholderFilter.isPlaceholder(value)) {
-            return;
-        }
-        if (allow.isAllowlistedPath(relativePath) || allow.isAllowlistedValue(value)) {
-            return; // suprimido: nem vira finding
-        }
-
-        String pathStr = relativePath.toString().replace('\\', '/');
-        String secretHash = Fingerprints.sha256Hex(value);
-        String fingerprint = Fingerprints.sha256Hex(ruleId + ":" + pathStr + ":" + secretHash);
-
-        if (allow.isAllowlistedFingerprint(fingerprint)) {
-            return;
-        }
-
-        findings.add(new SecretFinding(
-                fingerprint,
-                ruleId,
-                pathStr,
-                line,
-                line,
-                null, // commitSha — só em GIT_HISTORY
-                SecretMasking.mask(value),
-                secretHash,
-                entropy,
-                VerificationStatus.NOT_CHECKED,
-                false
-        ));
     }
 }
