@@ -144,6 +144,16 @@ public class ScanExecutionService {
         scanRepository.save(scan);
     }
 
+    /**
+     * Persiste um {@link ScanResult} já pronto — vindo da CLI via upload, não
+     * rodado aqui. Reaproveita exatamente a mesma persistência do fluxo do
+     * dashboard/PR ({@link #persistResult}), então um scan de CLI aparece no
+     * dashboard idêntico a um scan disparado pelo server.
+     */
+    public void ingestResult(UUID scanId, ScanResult result) {
+        persistResult(scanId, result);
+    }
+
     @Transactional
     void persistResult(UUID scanId, ScanResult result) {
         Scan scan = scanRepository.findById(scanId).orElseThrow();

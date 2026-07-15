@@ -14,8 +14,13 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
@@ -52,8 +57,28 @@ public class ScanCommand implements Callable<Integer> {
     @Option(names = "--allow-value-regex", description = "Regex de valor a ignorar na varredura de segredos (repetível).")
     List<String> allowValueRegexes = new ArrayList<>();
 
+    @Option(names = "--upload", description = "Envia o resultado pro server (exige --server, --api-key, --project).")
+    boolean uploadFlag;
+
+    @Option(names = "--server", description = "URL base do server, ex.: http://localhost:8082")
+    String serverUrl;
+
+    @Option(names = "--api-key", description = "Chave de API (header X-Api-Key) pra autenticar o upload.")
+    String apiKey;
+
+    @Option(names = "--project", description = "ID do projeto no server que vai receber o scan.")
+    String projectId;
+
+    private final HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(15))
+            .build();
+
     @Override
     public Integer call() {
+        if (uploadFlag && (isBlank(serverUrl) || isBlank(apiKey) || isBlank(projectId))) {
+            System.err.println("--upload exige --server, --api-key e --project.");
+            return 2;
+        }
         if (!Files.isDirectory(repoRoot)) {
             System.err.println("Caminho não é um diretório: " + repoRoot);
             return 2;
@@ -73,16 +98,53 @@ public class ScanCommand implements Callable<Integer> {
             Scanner scanner = new DefaultScanner();
             ScanResult result = scanner.scan(request);
 
-            Files.writeString(out.resolve("depguard-report.json"), new JsonReportWriter().write(result));
+            String reportJson = new JsonReportWriter().write(result);
+            Files.writeString(out.resolve("depguard-report.json"), reportJson);
             Files.writeString(out.resolve("depguard-report.sarif"), new SarifWriter().write(result));
             Files.writeString(out.resolve("depguard-sbom.cdx.json"), new CycloneDxWriter().write(result));
 
             printSummary(result, out);
+
+            if (uploadFlag) {
+                return uploadResult(reportJson);
+            }
             return 0;
         } catch (Exception e) {
             System.err.println("Falha no scan: " + e.getMessage());
             return 1;
         }
+    }
+
+    /**
+     * Envia o mesmo JSON de {@code depguard-report.json} pro endpoint de
+     * ingestão. Os relatórios locais já foram escritos antes daqui, então uma
+     * falha de upload não perde o resultado do scan — só reporta o erro.
+     */
+    private Integer uploadResult(String reportJson) {
+        String base = serverUrl.endsWith("/") ? serverUrl.substring(0, serverUrl.length() - 1) : serverUrl;
+        String url = base + "/api/v1/projects/" + projectId + "/scans/ingest";
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("X-Api-Key", apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(reportJson))
+                    .build();
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 300) {
+                System.err.println("Upload falhou (HTTP " + resp.statusCode() + "): " + resp.body());
+                return 1;
+            }
+            System.out.println("  upload:           OK -> " + resp.body());
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Upload falhou: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     private Set<Engine> resolveEngines() {

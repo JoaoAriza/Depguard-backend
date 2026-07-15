@@ -1,6 +1,8 @@
 package com.joao.depguard.server.service;
 
 import com.joao.depguard.core.model.Engine;
+import com.joao.depguard.core.model.ScanResult;
+import com.joao.depguard.server.model.AppUser;
 import com.joao.depguard.server.model.Project;
 import com.joao.depguard.server.model.Scan;
 import com.joao.depguard.server.model.ScanStatus;
@@ -68,6 +70,28 @@ public class ScanService {
                 .createdAt(LocalDateTime.now())
                 .build();
         return scanRepository.save(scan).getId();
+    }
+
+    /**
+     * Recebe um {@link ScanResult} já escaneado pela CLI e o persiste como um
+     * scan concluído (trigger CLI). Ao contrário de {@link #submit}, não roda
+     * nada — o scan aconteceu na máquina de quem chamou; aqui só materializa o
+     * resultado no dashboard.
+     *
+     * <p>Escopado pela organização do dono da chave de API: uma chave da org A
+     * não pode injetar findings num projeto da org B.
+     */
+    public UUID ingest(UUID projectId, ScanResult result, AppUser user) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado."));
+        if (!project.getOrganization().getId().equals(user.getOrganization().getId())) {
+            // 404 (não 403) de propósito: não vaza a existência de projetos de outra org.
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado.");
+        }
+
+        UUID scanId = createQueued(project, ScanTrigger.CLI);
+        executionService.ingestResult(scanId, result);
+        return scanId;
     }
 
     public Scan getOrThrow(UUID scanId) {

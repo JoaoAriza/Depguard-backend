@@ -1,8 +1,10 @@
 package com.joao.depguard.server.controller;
 
 import com.joao.depguard.core.model.Engine;
+import com.joao.depguard.core.model.ScanResult;
 import com.joao.depguard.server.dto.ScanStatusDto;
 import com.joao.depguard.server.dto.SubmitScanRequest;
+import com.joao.depguard.server.model.AppUser;
 import com.joao.depguard.server.model.ScanTrigger;
 import com.joao.depguard.server.service.ScanExportService;
 import com.joao.depguard.server.service.ScanService;
@@ -11,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,6 +48,21 @@ public class ScanController {
                 ? EnumSet.allOf(Engine.class)
                 : req.engines();
         UUID scanId = scanService.submit(projectId, Path.of(req.repoPath()), engines, ScanTrigger.MANUAL);
+        return Map.of("scanId", scanId);
+    }
+
+    /**
+     * Recebe um {@link ScanResult} já escaneado pela CLI (o mesmo JSON que a
+     * CLI escreve em {@code depguard-report.json}) e o materializa no
+     * dashboard. Autenticação via {@code X-Api-Key} (fluxo pensado pra CI) —
+     * o escopo por org é resolvido em {@link ScanService#ingest}.
+     */
+    @PostMapping("/projects/{projectId}/scans/ingest")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, UUID> ingest(@PathVariable UUID projectId,
+                                     @RequestBody ScanResult result,
+                                     @AuthenticationPrincipal AppUser user) {
+        UUID scanId = scanService.ingest(projectId, result, user);
         return Map.of("scanId", scanId);
     }
 

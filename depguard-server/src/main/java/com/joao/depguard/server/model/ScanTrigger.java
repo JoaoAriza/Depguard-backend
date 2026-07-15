@@ -5,5 +5,7 @@ public enum ScanTrigger {
     MANUAL,
     CI,
     WEBHOOK,
-    SCHEDULED
+    SCHEDULED,
+    /** Resultado escaneado pela CLI e enviado ao server via upload (não rodado aqui). */
+    CLI
 }
