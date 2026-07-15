@@ -1,7 +1,9 @@
 package com.joao.depguard.server.github;
 
+import com.joao.depguard.core.model.ChangedFile;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.FindingType;
+import com.joao.depguard.core.model.SecretScanMode;
 import com.joao.depguard.core.model.Severity;
 import com.joao.depguard.server.dto.FindingDto;
 import com.joao.depguard.server.model.TriageStatus;
@@ -33,17 +35,20 @@ public class GithubPullRequestScanRunner {
     private final GithubRepoCloner repoCloner;
     private final GithubCheckRunClient checkRunClient;
     private final GithubPullRequestCommentClient commentClient;
+    private final GithubPullRequestFilesClient filesClient;
 
     public GithubPullRequestScanRunner(FindingService findingService,
                                         ScanExecutionService scanExecutionService,
                                         GithubRepoCloner repoCloner,
                                         GithubCheckRunClient checkRunClient,
-                                        GithubPullRequestCommentClient commentClient) {
+                                        GithubPullRequestCommentClient commentClient,
+                                        GithubPullRequestFilesClient filesClient) {
         this.findingService = findingService;
         this.scanExecutionService = scanExecutionService;
         this.repoCloner = repoCloner;
         this.checkRunClient = checkRunClient;
         this.commentClient = commentClient;
+        this.filesClient = filesClient;
     }
 
     @Async
@@ -52,8 +57,12 @@ public class GithubPullRequestScanRunner {
         Path clonedRepo = null;
         try {
             clonedRepo = repoCloner.cloneAtCommit(cloneUrl, headSha, token);
+            // Segredos em PR_DIFF (só o que o PR adiciona); dependências ainda
+            // usam o clone completo — lockfile precisa da árvore inteira.
+            List<ChangedFile> changedFiles = filesClient.listChangedFiles(token, repoFullName, prNumber);
             boolean success = scanExecutionService.runSync(
-                    scanId, clonedRepo, Set.of(Engine.DEPENDENCIES, Engine.SECRETS));
+                    scanId, clonedRepo, Set.of(Engine.DEPENDENCIES, Engine.SECRETS),
+                    SecretScanMode.PR_DIFF, changedFiles);
 
             if (!success) {
                 checkRunClient.patchCompleted(token, repoFullName, checkRunId, "failure",

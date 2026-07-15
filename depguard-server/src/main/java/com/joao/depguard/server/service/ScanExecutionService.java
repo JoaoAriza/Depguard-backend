@@ -3,6 +3,7 @@ package com.joao.depguard.server.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.joao.depguard.core.Scanner;
 import com.joao.depguard.core.model.Allowlist;
+import com.joao.depguard.core.model.ChangedFile;
 import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.FindingType;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -82,13 +84,25 @@ public class ScanExecutionService {
      * @return true se o scan terminou com sucesso (status DONE)
      */
     public boolean runSync(UUID scanId, Path repoRoot, Set<Engine> engines) {
+        return runSync(scanId, repoRoot, engines, SecretScanMode.WORKING_TREE, List.of());
+    }
+
+    /**
+     * Variante usada pelo fluxo de PR do GitHub App: segredos em modo
+     * {@link SecretScanMode#PR_DIFF} (só as linhas que o PR adiciona — não
+     * reacusa segredo pré-existente que o PR não tocou), com dependências
+     * ainda escaneadas no clone completo (lockfile precisa da árvore
+     * inteira, não dá pra resolver a partir só do diff).
+     */
+    public boolean runSync(UUID scanId, Path repoRoot, Set<Engine> engines,
+                            SecretScanMode secretMode, List<ChangedFile> changedFiles) {
         Project project = markRunning(scanId);
         try {
             // Diferente da CLI (opt-in via --enrich, pra iteração local rápida):
             // scans do servidor alimentam triagem/dashboard, onde priorização por
             // EPSS/KEV importa mais que os ~1-2s extras de rede.
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, SecretScanMode.WORKING_TREE, buildAllowlist(project), true);
+                    repoRoot, engines, secretMode, buildAllowlist(project), true, changedFiles);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
             return true;
