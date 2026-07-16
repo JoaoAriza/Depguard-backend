@@ -164,14 +164,34 @@ class DefaultScannerTest {
         assertThat(result.secretFindings()).isEmpty();
     }
 
+    /**
+     * Roteamento do modo GIT_HISTORY (antes este teste afirmava que o modo
+     * lançava "não implementado" — agora ele é implementado, então o que
+     * importa é que o DefaultScanner encaminhe pro scanner de histórico).
+     */
     @Test
-    void modoDeSegredoNaoImplementadoLancaExcecaoClara(@TempDir Path repo) {
+    void modoGitHistoryVarreOHistoricoDoRepositorio(@TempDir Path repo) throws Exception {
+        try (org.eclipse.jgit.api.Git git =
+                     org.eclipse.jgit.api.Git.init().setDirectory(repo.toFile()).call()) {
+            Files.writeString(repo.resolve("config.env"), "AWS_KEY=" + FakeSecrets.AWS_ACCESS_KEY + "\n");
+            git.add().addFilepattern(".").call();
+            git.commit().setMessage("adiciona segredo")
+                    .setAuthor("Teste", "teste@example.com").setSign(false).call();
+            // apaga do working tree: só o histórico ainda tem o segredo
+            Files.delete(repo.resolve("config.env"));
+            git.rm().addFilepattern("config.env").call();
+            git.commit().setMessage("remove segredo")
+                    .setAuthor("Teste", "teste@example.com").setSign(false).call();
+        }
+
         DefaultScanner scanner = new DefaultScanner(fakeOsvApi(null));
         ScanRequest request = new ScanRequest(
                 repo, Set.of(Engine.SECRETS),
                 SecretScanMode.GIT_HISTORY, Allowlist.empty(), false);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> scanner.scan(request))
-                .isInstanceOf(UnsupportedOperationException.class);
+        ScanResult result = scanner.scan(request);
+
+        assertThat(result.secretFindings()).hasSize(1);
+        assertThat(result.secretFindings().get(0).commitSha()).isNotBlank();
     }
 }

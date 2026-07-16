@@ -19,6 +19,7 @@ import com.joao.depguard.core.model.ScanResult;
 import com.joao.depguard.core.model.SecretFinding;
 import com.joao.depguard.core.model.SecretScanMode;
 import com.joao.depguard.core.model.VulnFinding;
+import com.joao.depguard.core.secrets.GitHistorySecretScanner;
 import com.joao.depguard.core.secrets.PrDiffSecretScanner;
 import com.joao.depguard.core.secrets.WorkingTreeSecretScanner;
 
@@ -37,8 +38,7 @@ import java.util.Set;
  * {@code poetry.lock} (caminho feliz) ou {@code requirements.txt} (fallback
  * best-effort, sempre marca {@code partial}) — docs/architecture.md §2.1.
  * Maven fica de fora do MVP (sem lockfile próprio — ver docs §2.1). Engine B
- * cobre {@link SecretScanMode#WORKING_TREE} e {@link SecretScanMode#PR_DIFF};
- * histórico git é o Passo 9, ainda não ligado aqui.
+ * cobre os três modos de {@link SecretScanMode}.
  */
 public class DefaultScanner implements Scanner {
 
@@ -47,6 +47,7 @@ public class DefaultScanner implements Scanner {
     private final RequirementsTxtParser requirementsTxtParser = new RequirementsTxtParser();
     private final WorkingTreeSecretScanner secretScanner = new WorkingTreeSecretScanner();
     private final PrDiffSecretScanner prDiffSecretScanner = new PrDiffSecretScanner();
+    private final GitHistorySecretScanner gitHistorySecretScanner = new GitHistorySecretScanner();
     private final OsvApi osvApi;
     private final EpssApi epssApi;
     private final KevApi kevApi;
@@ -110,8 +111,7 @@ public class DefaultScanner implements Scanner {
             secretFindings = switch (request.secretMode()) {
                 case WORKING_TREE -> secretScanner.scan(request.repoRoot(), request.allowlist());
                 case PR_DIFF -> prDiffSecretScanner.scan(request.changedFiles(), request.allowlist());
-                case GIT_HISTORY -> throw new UnsupportedOperationException(
-                        "Modo GIT_HISTORY ainda não implementado (ver docs/architecture.md §8, Passo 9).");
+                case GIT_HISTORY -> gitHistorySecretScanner.scan(request.repoRoot(), request.allowlist());
             };
         }
 

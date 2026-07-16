@@ -25,27 +25,34 @@ class SecretLineScanner {
         this.rules = rules;
     }
 
+    /** Working tree / PR diff: o segredo está no checkout, não há commit a atribuir. */
     List<SecretFinding> scanLine(Path relativePath, int lineNumber, String line, AllowlistMatcher allow) {
+        return scanLine(relativePath, lineNumber, line, allow, null);
+    }
+
+    List<SecretFinding> scanLine(Path relativePath, int lineNumber, String line, AllowlistMatcher allow,
+                                  String commitSha) {
         List<SecretFinding> findings = new ArrayList<>();
 
         for (SecretRule rule : rules) {
             Matcher m = rule.pattern().matcher(line);
             while (m.find()) {
                 addFinding(findings, rule.id(), relativePath, lineNumber, m.group(),
-                        ShannonEntropy.of(m.group()), allow);
+                        ShannonEntropy.of(m.group()), allow, commitSha);
             }
         }
 
         for (GenericHighEntropyDetector.MatchCandidate c : genericDetector.find(line)) {
             addFinding(findings, "DG-SECRET-GENERIC-HIGH-ENTROPY", relativePath, lineNumber,
-                    c.value(), ShannonEntropy.of(c.value()), allow);
+                    c.value(), ShannonEntropy.of(c.value()), allow, commitSha);
         }
 
         return findings;
     }
 
     private void addFinding(List<SecretFinding> findings, String ruleId, Path relativePath,
-                             int line, String value, double entropy, AllowlistMatcher allow) {
+                             int line, String value, double entropy, AllowlistMatcher allow,
+                             String commitSha) {
         if (PlaceholderFilter.isPlaceholder(value)) {
             return;
         }
@@ -67,7 +74,7 @@ class SecretLineScanner {
                 pathStr,
                 line,
                 line,
-                null, // commitSha — só em GIT_HISTORY
+                commitSha, // null fora do modo GIT_HISTORY
                 SecretMasking.mask(value),
                 secretHash,
                 entropy,

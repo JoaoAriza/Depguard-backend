@@ -48,6 +48,10 @@ public class ScanCommand implements Callable<Integer> {
     @Option(names = "--enrich", description = "Enriquece vulnerabilidades com EPSS/KEV (2 chamadas de rede extras).")
     boolean enrichFlag;
 
+    @Option(names = "--history",
+            description = "Varre o histórico do git em vez do working tree (acha segredo já deletado). Mais lento.")
+    boolean historyFlag;
+
     @Option(names = "--out", description = "Diretório de saída dos relatórios. Padrão: o próprio repositório.")
     Path outDir;
 
@@ -92,8 +96,9 @@ public class ScanCommand implements Callable<Integer> {
 
             Allowlist allowlist = new Allowlist(
                     new LinkedHashSet<>(allowPaths), new LinkedHashSet<>(allowValueRegexes), Set.of());
+            SecretScanMode secretMode = historyFlag ? SecretScanMode.GIT_HISTORY : SecretScanMode.WORKING_TREE;
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, SecretScanMode.WORKING_TREE, allowlist, enrichFlag);
+                    repoRoot, engines, secretMode, allowlist, enrichFlag);
 
             Scanner scanner = new DefaultScanner();
             ScanResult result = scanner.scan(request);
