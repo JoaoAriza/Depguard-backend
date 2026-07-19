@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +34,29 @@ public class PolicyRulesParser {
                 bool(node, "failOnSecrets", defaults.failOnSecrets()),
                 severity(node, "failOnSeverity", defaults.failOnSeverity()),
                 bool(node, "failOnKev", defaults.failOnKev()),
-                epss(node, "failOnEpssAbove", defaults.failOnEpssAbove()));
+                epss(node, "failOnEpssAbove", defaults.failOnEpssAbove()),
+                licenses(node, "deniedLicenses", defaults.deniedLicenses()));
+    }
+
+    private Set<String> licenses(JsonNode node, String field, Set<String> fallback) {
+        if (!node.has(field)) {
+            return fallback;
+        }
+        JsonNode v = node.get(field);
+        if (v.isNull()) {
+            return Set.of();
+        }
+        if (!v.isArray()) {
+            throw badRequest(field + " deve ser uma lista de padrões, ex.: [\"GPL-*\", \"AGPL-*\"].");
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (JsonNode item : v) {
+            if (!item.isTextual() || item.asText().isBlank()) {
+                throw badRequest(field + " só aceita padrões de texto não vazios.");
+            }
+            out.add(item.asText().trim());
+        }
+        return out;
     }
 
     private boolean bool(JsonNode node, String field, boolean fallback) {

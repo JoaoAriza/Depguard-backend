@@ -1,5 +1,6 @@
 package com.joao.depguard.core.policy;
 
+import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.SecretFinding;
 import com.joao.depguard.core.model.Severity;
 import com.joao.depguard.core.model.VerificationStatus;
@@ -7,6 +8,7 @@ import com.joao.depguard.core.model.VulnFinding;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,14 +34,14 @@ class PolicyEvaluatorTest {
 
     @Test
     void failOnSecretsDesligadoIgnoraSegredos() {
-        PolicyRules rules = new PolicyRules(false, null, false, null);
+        PolicyRules rules = new PolicyRules(false, null, false, null, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(), List.of(secret())).blocking()).isFalse();
     }
 
     @Test
     void failOnSeverityBloqueiaSeveridadeIgualOuAcima() {
-        PolicyRules rules = new PolicyRules(false, Severity.HIGH, false, null);
+        PolicyRules rules = new PolicyRules(false, Severity.HIGH, false, null, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(vuln(Severity.CRITICAL)), List.of()).blocking()).isTrue();
         assertThat(evaluator.evaluate(rules, List.of(vuln(Severity.HIGH)), List.of()).blocking()).isTrue();
@@ -49,14 +51,14 @@ class PolicyEvaluatorTest {
 
     @Test
     void failOnSeverityNuloNaoAvaliaPorSeveridade() {
-        PolicyRules rules = new PolicyRules(false, null, false, null);
+        PolicyRules rules = new PolicyRules(false, null, false, null, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(vuln(Severity.CRITICAL)), List.of()).blocking()).isFalse();
     }
 
     @Test
     void failOnKevBloqueiaSoQuandoListadoNoKev() {
-        PolicyRules rules = new PolicyRules(false, null, true, null);
+        PolicyRules rules = new PolicyRules(false, null, true, null, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(vulnKev(true)), List.of()).blocking()).isTrue();
         assertThat(evaluator.evaluate(rules, List.of(vulnKev(false)), List.of()).blocking()).isFalse();
@@ -64,7 +66,7 @@ class PolicyEvaluatorTest {
 
     @Test
     void failOnEpssAboveComparaComOLimiar() {
-        PolicyRules rules = new PolicyRules(false, null, false, 0.5);
+        PolicyRules rules = new PolicyRules(false, null, false, 0.5, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(vulnEpss(0.9)), List.of()).blocking()).isTrue();
         assertThat(evaluator.evaluate(rules, List.of(vulnEpss(0.1)), List.of()).blocking()).isFalse();
@@ -74,7 +76,7 @@ class PolicyEvaluatorTest {
 
     @Test
     void vulnSemEpssNaoBloqueiaPorEpss() {
-        PolicyRules rules = new PolicyRules(false, null, false, 0.5);
+        PolicyRules rules = new PolicyRules(false, null, false, 0.5, Set.of());
 
         assertThat(evaluator.evaluate(rules, List.of(vulnEpss(null)), List.of()).blocking()).isFalse();
     }
@@ -82,7 +84,7 @@ class PolicyEvaluatorTest {
     /** Formatação de número não pode depender do locale da JVM (pt-BR usa vírgula). */
     @Test
     void motivoDeEpssUsaPontoComoSeparadorDecimal() {
-        PolicyRules rules = new PolicyRules(false, null, false, 0.5);
+        PolicyRules rules = new PolicyRules(false, null, false, 0.5, Set.of());
 
         PolicyDecision d = evaluator.evaluate(rules, List.of(vulnEpss(0.9)), List.of());
 
@@ -91,7 +93,7 @@ class PolicyEvaluatorTest {
 
     @Test
     void acumulaTodosOsMotivosQuandoVariasRegrasDisparam() {
-        PolicyRules rules = new PolicyRules(true, Severity.HIGH, true, 0.5);
+        PolicyRules rules = new PolicyRules(true, Severity.HIGH, true, 0.5, Set.of());
 
         PolicyDecision d = evaluator.evaluate(
                 rules, List.of(vulnAll(Severity.CRITICAL, true, 0.9)), List.of(secret()));
@@ -115,6 +117,39 @@ class PolicyEvaluatorTest {
         // KEV/EPSS não entravam no hardcoded
         assertThat(evaluator.evaluate(defaults, List.of(vulnAll(Severity.LOW, true, 0.99)), List.of()).blocking())
                 .isFalse();
+    }
+
+    @Test
+    void deniedLicensesBloqueiaEnomeiaOPacoteOfensor() {
+        PolicyRules rules = new PolicyRules(false, null, false, null, Set.of("GPL-*"));
+
+        PolicyDecision d = evaluator.evaluate(rules,
+                List.of(component("libcopyleft", "GPL-3.0"), component("libok", "MIT")),
+                List.of(), List.of());
+
+        assertThat(d.blocking()).isTrue();
+        // nomear o pacote é o que torna o motivo acionável (qual trocar?)
+        assertThat(d.reasons()).singleElement().asString()
+                .contains("libcopyleft").contains("GPL-3.0").doesNotContain("libok");
+    }
+
+    @Test
+    void deniedLicensesVazioNaoAvaliaLicenca() {
+        assertThat(evaluator.evaluate(PolicyRules.defaults(),
+                List.of(component("libcopyleft", "GPL-3.0")), List.of(), List.of()).blocking()).isFalse();
+    }
+
+    @Test
+    void componenteSemLicencaConhecidaNaoBloqueia() {
+        PolicyRules rules = new PolicyRules(false, null, false, null, Set.of("GPL-*"));
+
+        assertThat(evaluator.evaluate(rules, List.of(component("libdesconhecida")), List.of(), List.of())
+                .blocking()).isFalse();
+    }
+
+    private Component component(String name, String... licenses) {
+        return new Component("npm", name, "1.0.0", "pkg:npm/" + name + "@1.0.0",
+                true, 0, List.of(licenses));
     }
 
     private SecretFinding secret() {

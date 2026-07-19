@@ -1,6 +1,7 @@
 package com.joao.depguard.server.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.FindingType;
 import com.joao.depguard.core.model.SecretFinding;
 import com.joao.depguard.core.model.VulnFinding;
@@ -14,6 +15,7 @@ import com.joao.depguard.server.model.Project;
 import com.joao.depguard.server.model.Scan;
 import com.joao.depguard.server.repository.PolicyRepository;
 import com.joao.depguard.server.repository.ProjectRepository;
+import com.joao.depguard.server.repository.ScanComponentRepository;
 import com.joao.depguard.server.repository.ScanRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class PolicyService {
     private final ProjectRepository projectRepository;
     private final PolicyRepository policyRepository;
     private final ScanRepository scanRepository;
+    private final ScanComponentRepository scanComponentRepository;
     private final PolicyRulesParser rulesParser;
     private final ObjectMapper mapper;
     private final PolicyEvaluator evaluator = new PolicyEvaluator();
@@ -41,11 +44,13 @@ public class PolicyService {
     public PolicyService(ProjectRepository projectRepository,
                           PolicyRepository policyRepository,
                           ScanRepository scanRepository,
+                          ScanComponentRepository scanComponentRepository,
                           PolicyRulesParser rulesParser,
                           ObjectMapper mapper) {
         this.projectRepository = projectRepository;
         this.policyRepository = policyRepository;
         this.scanRepository = scanRepository;
+        this.scanComponentRepository = scanComponentRepository;
         this.rulesParser = rulesParser;
         this.mapper = mapper;
     }
@@ -94,7 +99,18 @@ public class PolicyService {
                 .map(f -> mapper.convertValue(f.detail(), SecretFinding.class))
                 .toList();
 
-        return evaluator.evaluate(rulesFor(scan.getProject()), vulns, secrets);
+        PolicyRules rules = rulesFor(scan.getProject());
+
+        // Só carrega componentes se a regra de licença estiver ligada — pra
+        // não pagar a query em todo PR de projeto que não usa a regra.
+        List<Component> components = rules.deniedLicenses().isEmpty()
+                ? List.of()
+                : scanComponentRepository.findByScan(scan).stream()
+                        .map(c -> new Component(c.getEcosystem(), c.getName(), c.getVersion(), c.getPurl(),
+                                c.isDirect(), c.getDepth(), c.getLicenses()))
+                        .toList();
+
+        return evaluator.evaluate(rules, components, vulns, secrets);
     }
 
     private com.fasterxml.jackson.databind.JsonNode readTree(String json) {

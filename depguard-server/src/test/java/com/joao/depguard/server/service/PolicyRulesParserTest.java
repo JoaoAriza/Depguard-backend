@@ -85,6 +85,28 @@ class PolicyRulesParserTest {
     }
 
     @Test
+    void leListaDeLicencasNegadas() throws Exception {
+        assertThat(parse("{\"deniedLicenses\": [\"GPL-*\", \"AGPL-*\"]}").deniedLicenses())
+                .containsExactlyInAnyOrder("GPL-*", "AGPL-*");
+    }
+
+    @Test
+    void licencasAusenteHerdaDefaultVazioENullDesliga() throws Exception {
+        assertThat(parse("{}").deniedLicenses()).isEmpty();
+        assertThat(parse("{\"deniedLicenses\": null}").deniedLicenses()).isEmpty();
+    }
+
+    @Test
+    void licencasComTipoErradoFalha() {
+        assertThatThrownBy(() -> parse("{\"deniedLicenses\": \"GPL-*\"}"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("lista de padrões");
+        assertThatThrownBy(() -> parse("{\"deniedLicenses\": [\"\"]}"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("não vazios");
+    }
+
+    @Test
     void tipoErradoFalhaEmVezDeSerIgnoradoSilenciosamente() {
         assertThatThrownBy(() -> parse("{\"failOnSecrets\": \"sim\"}"))
                 .isInstanceOf(ResponseStatusException.class)

@@ -2,10 +2,14 @@ package com.joao.depguard.server.controller;
 
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.ScanResult;
+import com.joao.depguard.core.policy.PolicyDecision;
 import com.joao.depguard.server.dto.ScanStatusDto;
 import com.joao.depguard.server.dto.SubmitScanRequest;
 import com.joao.depguard.server.model.AppUser;
 import com.joao.depguard.server.model.ScanTrigger;
+import com.joao.depguard.server.model.TriageStatus;
+import com.joao.depguard.server.service.FindingService;
+import com.joao.depguard.server.service.PolicyService;
 import com.joao.depguard.server.service.ScanExportService;
 import com.joao.depguard.server.service.ScanService;
 import org.springframework.http.ContentDisposition;
@@ -35,10 +39,17 @@ public class ScanController {
 
     private final ScanService scanService;
     private final ScanExportService scanExportService;
+    private final PolicyService policyService;
+    private final FindingService findingService;
 
-    public ScanController(ScanService scanService, ScanExportService scanExportService) {
+    public ScanController(ScanService scanService,
+                           ScanExportService scanExportService,
+                           PolicyService policyService,
+                           FindingService findingService) {
         this.scanService = scanService;
         this.scanExportService = scanExportService;
+        this.policyService = policyService;
+        this.findingService = findingService;
     }
 
     @PostMapping("/projects/{projectId}/scans")
@@ -90,6 +101,24 @@ public class ScanController {
     @GetMapping(value = "/scans/{id}/sarif", produces = MediaType.APPLICATION_JSON_VALUE)
     public String sarif(@PathVariable UUID id) {
         return scanExportService.sarif(id);
+    }
+
+    /**
+     * Resultado da policy pra este scan — o mesmo veredito que bloqueia (ou
+     * não) um PR, mas visível fora do fluxo do GitHub: sem isso, quem olha um
+     * scan no dashboard não tem como saber se ele passa na policy do projeto.
+     *
+     * <p>Aplica o mesmo filtro de triagem do fluxo de PR (FALSE_POSITIVE e
+     * ACCEPTED_RISK não contam), pra não dar veredito diferente do que o PR
+     * daria com os mesmos dados.
+     */
+    @GetMapping("/scans/{id}/policy-decision")
+    public PolicyDecision policyDecision(@PathVariable UUID id) {
+        var actionable = findingService.listByScan(id, null, null, null).stream()
+                .filter(f -> f.triageStatus() != TriageStatus.FALSE_POSITIVE
+                        && f.triageStatus() != TriageStatus.ACCEPTED_RISK)
+                .toList();
+        return policyService.evaluateForScan(id, actionable);
     }
 
     /** Relatório humano (PDFBox) — inclui triagem, ao contrário do SARIF/CycloneDX (formatos-padrão). */

@@ -1,12 +1,15 @@
 package com.joao.depguard.core.policy;
 
+import com.joao.depguard.core.model.Component;
 import com.joao.depguard.core.model.SecretFinding;
 import com.joao.depguard.core.model.Severity;
 import com.joao.depguard.core.model.VulnFinding;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Avalia as condições de fail de um projeto contra o resultado de um scan
@@ -16,8 +19,14 @@ import java.util.Locale;
  */
 public class PolicyEvaluator {
 
+    /** Sobrecarga pra quem não avalia licença (não precisa dos componentes). */
     public PolicyDecision evaluate(PolicyRules rules, List<VulnFinding> vulnFindings,
                                     List<SecretFinding> secretFindings) {
+        return evaluate(rules, List.of(), vulnFindings, secretFindings);
+    }
+
+    public PolicyDecision evaluate(PolicyRules rules, List<Component> components,
+                                    List<VulnFinding> vulnFindings, List<SecretFinding> secretFindings) {
         List<String> reasons = new ArrayList<>();
 
         if (rules.failOnSecrets() && !secretFindings.isEmpty()) {
@@ -49,6 +58,23 @@ public class PolicyEvaluator {
                 // pt-BR e o texto sai "EPSS acima de 0,5".
                 reasons.add(String.format(Locale.ROOT, "%d vulnerabilidade(s) com EPSS acima de %.2f",
                         n, rules.failOnEpssAbove()));
+            }
+        }
+
+        if (!rules.deniedLicenses().isEmpty()) {
+            // Nomeia os pacotes: "3 dependências com licença de risco" não diz
+            // qual trocar. Set ordenado pra mensagem ser determinística.
+            Set<String> offenders = new LinkedHashSet<>();
+            for (Component c : components) {
+                for (String license : c.licenses()) {
+                    if (LicenseMatcher.isDenied(license, rules.deniedLicenses())) {
+                        offenders.add(c.name() + " (" + license + ")");
+                    }
+                }
+            }
+            if (!offenders.isEmpty()) {
+                reasons.add(offenders.size() + " dependência(s) com licença de risco: "
+                        + String.join(", ", offenders));
             }
         }
 
