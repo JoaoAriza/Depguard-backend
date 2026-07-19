@@ -4,10 +4,11 @@ import com.joao.depguard.core.model.ChangedFile;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.FindingType;
 import com.joao.depguard.core.model.SecretScanMode;
-import com.joao.depguard.core.model.Severity;
+import com.joao.depguard.core.policy.PolicyDecision;
 import com.joao.depguard.server.dto.FindingDto;
 import com.joao.depguard.server.model.TriageStatus;
 import com.joao.depguard.server.service.FindingService;
+import com.joao.depguard.server.service.PolicyService;
 import com.joao.depguard.server.service.ScanExecutionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ public class GithubPullRequestScanRunner {
     private static final Logger log = LoggerFactory.getLogger(GithubPullRequestScanRunner.class);
 
     private final FindingService findingService;
+    private final PolicyService policyService;
     private final ScanExecutionService scanExecutionService;
     private final GithubRepoCloner repoCloner;
     private final GithubCheckRunClient checkRunClient;
@@ -38,12 +40,14 @@ public class GithubPullRequestScanRunner {
     private final GithubPullRequestFilesClient filesClient;
 
     public GithubPullRequestScanRunner(FindingService findingService,
+                                        PolicyService policyService,
                                         ScanExecutionService scanExecutionService,
                                         GithubRepoCloner repoCloner,
                                         GithubCheckRunClient checkRunClient,
                                         GithubPullRequestCommentClient commentClient,
                                         GithubPullRequestFilesClient filesClient) {
         this.findingService = findingService;
+        this.policyService = policyService;
         this.scanExecutionService = scanExecutionService;
         this.repoCloner = repoCloner;
         this.checkRunClient = checkRunClient;
@@ -72,7 +76,7 @@ public class GithubPullRequestScanRunner {
             }
 
             List<FindingDto> findings = findingService.listByScan(scanId, null, null, null);
-            report(token, repoFullName, checkRunId, prNumber, findings);
+            report(token, repoFullName, checkRunId, prNumber, scanId, findings);
         } catch (Exception e) {
             log.error("Falha processando PR #{} de {}", prNumber, repoFullName, e);
             checkRunClient.patchCompleted(token, repoFullName, checkRunId, "failure",
@@ -85,17 +89,17 @@ public class GithubPullRequestScanRunner {
     }
 
     /**
-     * Política de bloqueio provisória pro MVP (Fase 1): falha o check se
-     * houver QUALQUER segredo ou vulnerabilidade CRITICAL/HIGH. O motor de
-     * políticas de verdade, configurável por projeto (regras já persistidas
-     * em {@code Policy} desde o Passo 7), é Fase 2 — aqui é só um default
-     * fixo pra já ter um sinal de bloqueio funcionando.
+     * O bloqueio vem da policy do projeto ({@link PolicyService}); projeto sem
+     * policy cai nos defaults, que reproduzem o comportamento que era
+     * hardcoded aqui antes do motor existir (qualquer segredo ou vuln
+     * CRITICAL/HIGH).
      *
-     * FALSE_POSITIVE/ACCEPTED_RISK não contam pro bloqueio — já foram
+     * <p>FALSE_POSITIVE/ACCEPTED_RISK não contam pro bloqueio — já foram
      * triados por um humano; contar mesmo assim tornaria a triagem inútil
      * pro caso de uso que mais importa (liberar o merge).
      */
-    private void report(String token, String repoFullName, long checkRunId, int prNumber, List<FindingDto> findings) {
+    private void report(String token, String repoFullName, long checkRunId, int prNumber,
+                         UUID scanId, List<FindingDto> findings) {
         List<FindingDto> actionable = findings.stream()
                 .filter(f -> f.triageStatus() != TriageStatus.FALSE_POSITIVE
                         && f.triageStatus() != TriageStatus.ACCEPTED_RISK)
@@ -103,21 +107,26 @@ public class GithubPullRequestScanRunner {
 
         long secretCount = actionable.stream().filter(f -> f.type() == FindingType.SECRET).count();
         long vulnCount = actionable.stream().filter(f -> f.type() == FindingType.DEPENDENCY_VULN).count();
-        long criticalOrHigh = actionable.stream()
-                .filter(f -> f.type() == FindingType.DEPENDENCY_VULN)
-                .filter(f -> f.severity() == Severity.CRITICAL || f.severity() == Severity.HIGH)
-                .count();
 
-        boolean blocking = secretCount > 0 || criticalOrHigh > 0;
-        String conclusion = blocking ? "failure" : "success";
-        String title = blocking
+        PolicyDecision decision = policyService.evaluateForScan(scanId, actionable);
+
+        String conclusion = decision.blocking() ? "failure" : "success";
+        String title = decision.blocking()
                 ? "DepGuard encontrou problemas que bloqueiam o merge"
                 : "DepGuard não encontrou problemas bloqueantes";
-        String summary = String.format(
-                "**%d** segredo(s) e **%d** vulnerabilidade(s) encontrados (%d CRITICAL/HIGH).",
-                secretCount, vulnCount, criticalOrHigh);
 
-        checkRunClient.patchCompleted(token, repoFullName, checkRunId, conclusion, title, summary);
+        StringBuilder summary = new StringBuilder(String.format(
+                "**%d** segredo(s) e **%d** vulnerabilidade(s) encontrados.", secretCount, vulnCount));
+        if (decision.blocking()) {
+            // Sem os motivos, quem tem o merge travado não sabe qual regra
+            // disparou nem o que fazer pra destravar.
+            summary.append("\n\nBloqueado pela policy do projeto:");
+            for (String reason : decision.reasons()) {
+                summary.append("\n- ").append(reason);
+            }
+        }
+
+        checkRunClient.patchCompleted(token, repoFullName, checkRunId, conclusion, title, summary.toString());
 
         // Comentário é best-effort: se falhar (PR fechado, rate limit, etc.),
         // não pode sobrescrever o Check Run que já foi reportado corretamente
