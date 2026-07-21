@@ -53,6 +53,7 @@ public class ScanExecutionService {
     private final FindingTriageRepository findingTriageRepository;
     private final SbomRepository sbomRepository;
     private final Scanner scanner;
+    private final PolicyService policyService;
     private final ObjectMapper mapper = new ObjectMapper();
     private final CycloneDxWriter cycloneDxWriter = new CycloneDxWriter();
 
@@ -61,13 +62,15 @@ public class ScanExecutionService {
                                  FindingRepository findingRepository,
                                  FindingTriageRepository findingTriageRepository,
                                  SbomRepository sbomRepository,
-                                 Scanner scanner) {
+                                 Scanner scanner,
+                                 PolicyService policyService) {
         this.scanRepository = scanRepository;
         this.scanComponentRepository = scanComponentRepository;
         this.findingRepository = findingRepository;
         this.findingTriageRepository = findingTriageRepository;
         this.sbomRepository = sbomRepository;
         this.scanner = scanner;
+        this.policyService = policyService;
     }
 
     @Async
@@ -101,8 +104,10 @@ public class ScanExecutionService {
             // Diferente da CLI (opt-in via --enrich, pra iteração local rápida):
             // scans do servidor alimentam triagem/dashboard, onde priorização por
             // EPSS/KEV importa mais que os ~1-2s extras de rede.
+            // Verificação ao vivo é opt-in por projeto, guardada na policy (§3.3).
+            boolean verifySecrets = policyService.rulesFor(project).verifySecrets();
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, secretMode, buildAllowlist(project), true, changedFiles);
+                    repoRoot, engines, secretMode, buildAllowlist(project), true, changedFiles, verifySecrets);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
             return true;

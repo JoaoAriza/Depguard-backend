@@ -2,6 +2,7 @@ package com.joao.depguard.core.secrets;
 
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.SecretFinding;
+import com.joao.depguard.core.secrets.verify.SecretVerification;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -55,6 +56,10 @@ public class GitHistorySecretScanner {
     }
 
     public List<SecretFinding> scan(Path repoRoot, Allowlist allowlist) {
+        return scan(repoRoot, allowlist, SecretVerification.disabled());
+    }
+
+    public List<SecretFinding> scan(Path repoRoot, Allowlist allowlist, SecretVerification verification) {
         AllowlistMatcher allow = new AllowlistMatcher(allowlist);
         // LinkedHashMap: dedup por fingerprint preservando a ordem de descoberta.
         Map<String, SecretFinding> byFingerprint = new LinkedHashMap<>();
@@ -74,7 +79,7 @@ public class GitHistorySecretScanner {
 
             walk.markStart(walk.parseCommit(head));
             for (RevCommit commit : walk) {
-                for (SecretFinding f : scanCommit(repo, walk, formatter, commit, allow)) {
+                for (SecretFinding f : scanCommit(repo, walk, formatter, commit, allow, verification)) {
                     byFingerprint.putIfAbsent(f.fingerprint(), f);
                 }
             }
@@ -86,7 +91,8 @@ public class GitHistorySecretScanner {
     }
 
     private List<SecretFinding> scanCommit(Repository repo, RevWalk walk, DiffFormatter formatter,
-                                            RevCommit commit, AllowlistMatcher allow) throws IOException {
+                                            RevCommit commit, AllowlistMatcher allow,
+                                            SecretVerification verification) throws IOException {
         List<SecretFinding> findings = new ArrayList<>();
         String commitSha = commit.getName();
 
@@ -100,7 +106,7 @@ public class GitHistorySecretScanner {
             if (diff.getChangeType() == DiffEntry.ChangeType.DELETE) {
                 continue; // não há conteúdo novo pra escanear
             }
-            findings.addAll(scanDiff(repo, formatter, diff, commitSha, allow));
+            findings.addAll(scanDiff(repo, formatter, diff, commitSha, allow, verification));
         }
 
         return findings;
@@ -117,7 +123,8 @@ public class GitHistorySecretScanner {
     }
 
     private List<SecretFinding> scanDiff(Repository repo, DiffFormatter formatter, DiffEntry diff,
-                                          String commitSha, AllowlistMatcher allow) throws IOException {
+                                          String commitSha, AllowlistMatcher allow,
+                                          SecretVerification verification) throws IOException {
         List<SecretFinding> findings = new ArrayList<>();
 
         if (!diff.getNewId().isComplete()) {
@@ -148,7 +155,8 @@ public class GitHistorySecretScanner {
                 continue;
             }
             // RawText é 0-based; SecretFinding.lineStart é 1-based.
-            findings.addAll(lineScanner.scanLine(relative, i + 1, newText.getString(i), allow, commitSha));
+            findings.addAll(lineScanner.scanLine(
+                    relative, i + 1, newText.getString(i), allow, commitSha, verification));
         }
 
         return findings;

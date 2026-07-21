@@ -35,7 +35,8 @@ public class PolicyRulesParser {
                 severity(node, "failOnSeverity", defaults.failOnSeverity()),
                 bool(node, "failOnKev", defaults.failOnKev()),
                 epss(node, "failOnEpssAbove", defaults.failOnEpssAbove()),
-                licenses(node, "deniedLicenses", defaults.deniedLicenses()));
+                licenses(node, "deniedLicenses", defaults.deniedLicenses()),
+                bool(node, "verifySecrets", defaults.verifySecrets()));
     }
 
     private Set<String> licenses(JsonNode node, String field, Set<String> fallback) {

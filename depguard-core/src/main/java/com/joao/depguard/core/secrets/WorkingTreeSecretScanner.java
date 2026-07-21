@@ -2,6 +2,7 @@ package com.joao.depguard.core.secrets;
 
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.SecretFinding;
+import com.joao.depguard.core.secrets.verify.SecretVerification;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,6 +33,10 @@ public class WorkingTreeSecretScanner {
     }
 
     public List<SecretFinding> scan(Path repoRoot, Allowlist allowlist) {
+        return scan(repoRoot, allowlist, SecretVerification.disabled());
+    }
+
+    public List<SecretFinding> scan(Path repoRoot, Allowlist allowlist, SecretVerification verification) {
         AllowlistMatcher allow = new AllowlistMatcher(allowlist);
         List<SecretFinding> findings = new ArrayList<>();
 
@@ -42,7 +47,7 @@ public class WorkingTreeSecretScanner {
                     .toList();
 
             for (Path file : files) {
-                findings.addAll(scanFile(repoRoot, file, allow));
+                findings.addAll(scanFile(repoRoot, file, allow, verification));
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Falha ao percorrer " + repoRoot, e);
@@ -61,7 +66,8 @@ public class WorkingTreeSecretScanner {
         return false;
     }
 
-    private List<SecretFinding> scanFile(Path repoRoot, Path file, AllowlistMatcher allow) {
+    private List<SecretFinding> scanFile(Path repoRoot, Path file, AllowlistMatcher allow,
+                                          SecretVerification verification) {
         Path relative = repoRoot.relativize(file);
         List<SecretFinding> findings = new ArrayList<>();
 
@@ -75,7 +81,7 @@ public class WorkingTreeSecretScanner {
         }
 
         for (int i = 0; i < lines.size(); i++) {
-            findings.addAll(lineScanner.scanLine(relative, i + 1, lines.get(i), allow));
+            findings.addAll(lineScanner.scanLine(relative, i + 1, lines.get(i), allow, null, verification));
         }
 
         return findings;

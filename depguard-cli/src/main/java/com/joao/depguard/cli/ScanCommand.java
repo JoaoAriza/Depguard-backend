@@ -52,6 +52,10 @@ public class ScanCommand implements Callable<Integer> {
             description = "Varre o histórico do git em vez do working tree (acha segredo já deletado). Mais lento.")
     boolean historyFlag;
 
+    @Option(names = "--verify-secrets",
+            description = "Checa ao vivo se cada segredo é credencial ATIVA (envia o valor pro provedor legítimo). Opt-in.")
+    boolean verifySecretsFlag;
+
     @Option(names = "--out", description = "Diretório de saída dos relatórios. Padrão: o próprio repositório.")
     Path outDir;
 
@@ -98,7 +102,7 @@ public class ScanCommand implements Callable<Integer> {
                     new LinkedHashSet<>(allowPaths), new LinkedHashSet<>(allowValueRegexes), Set.of());
             SecretScanMode secretMode = historyFlag ? SecretScanMode.GIT_HISTORY : SecretScanMode.WORKING_TREE;
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, secretMode, allowlist, enrichFlag);
+                    repoRoot, engines, secretMode, allowlist, enrichFlag, java.util.List.of(), verifySecretsFlag);
 
             Scanner scanner = new DefaultScanner();
             ScanResult result = scanner.scan(request);

@@ -22,6 +22,7 @@ import com.joao.depguard.core.model.VulnFinding;
 import com.joao.depguard.core.secrets.GitHistorySecretScanner;
 import com.joao.depguard.core.secrets.PrDiffSecretScanner;
 import com.joao.depguard.core.secrets.WorkingTreeSecretScanner;
+import com.joao.depguard.core.secrets.verify.SecretVerification;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -108,10 +109,15 @@ public class DefaultScanner implements Scanner {
 
         List<SecretFinding> secretFindings = List.of();
         if (request.engines().contains(Engine.SECRETS)) {
+            // Uma instância de verificação por scan (cache de vida curta); desligada
+            // quando o opt-in está off — aí nenhuma chamada de rede acontece.
+            SecretVerification verification = request.verifySecrets()
+                    ? SecretVerification.withDefaults()
+                    : SecretVerification.disabled();
             secretFindings = switch (request.secretMode()) {
-                case WORKING_TREE -> secretScanner.scan(request.repoRoot(), request.allowlist());
-                case PR_DIFF -> prDiffSecretScanner.scan(request.changedFiles(), request.allowlist());
-                case GIT_HISTORY -> gitHistorySecretScanner.scan(request.repoRoot(), request.allowlist());
+                case WORKING_TREE -> secretScanner.scan(request.repoRoot(), request.allowlist(), verification);
+                case PR_DIFF -> prDiffSecretScanner.scan(request.changedFiles(), request.allowlist(), verification);
+                case GIT_HISTORY -> gitHistorySecretScanner.scan(request.repoRoot(), request.allowlist(), verification);
             };
         }
 

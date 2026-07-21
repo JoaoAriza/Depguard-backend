@@ -107,6 +107,19 @@ class PolicyRulesParserTest {
     }
 
     @Test
+    void verifySecretsLidoEDefaultOff() throws Exception {
+        assertThat(parse("{}").verifySecrets()).isFalse(); // opt-in: off por default
+        assertThat(parse("{\"verifySecrets\": true}").verifySecrets()).isTrue();
+    }
+
+    @Test
+    void verifySecretsComTipoErradoFalha() {
+        assertThatThrownBy(() -> parse("{\"verifySecrets\": \"sim\"}"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("true ou false");
+    }
+
+    @Test
     void tipoErradoFalhaEmVezDeSerIgnoradoSilenciosamente() {
         assertThatThrownBy(() -> parse("{\"failOnSecrets\": \"sim\"}"))
                 .isInstanceOf(ResponseStatusException.class)
