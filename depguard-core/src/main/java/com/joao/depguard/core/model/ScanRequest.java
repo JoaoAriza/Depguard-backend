@@ -15,6 +15,9 @@ import java.util.Set;
  * @param changedFiles         arquivos alterados, só usado quando {@code secretMode == PR_DIFF}
  * @param verifySecrets        liga verificação ao vivo de segredos (opt-in, §3.3): manda o
  *                             valor cru pro provedor legítimo pra saber se é credencial ativa
+ * @param resolveMaven         roda {@code mvn dependency:tree} pra resolver deps Maven (§2.1).
+ *                             OPT-IN e só pra código CONFIÁVEL — rodar mvn executa o build,
+ *                             então um pom.xml malicioso vira RCE. Default off = servidor seguro.
  */
 public record ScanRequest(
         Path repoRoot,
@@ -23,17 +26,25 @@ public record ScanRequest(
         Allowlist allowlist,
         boolean enrichExploitability,
         List<ChangedFile> changedFiles,
-        boolean verifySecrets
+        boolean verifySecrets,
+        boolean resolveMaven
 ) {
-    /** Compatibilidade: chamadas que não usam PR_DIFF nem verificação. */
+    /** Compatibilidade: chamadas que não usam PR_DIFF, verificação nem Maven. */
     public ScanRequest(Path repoRoot, Set<Engine> engines, SecretScanMode secretMode,
                         Allowlist allowlist, boolean enrichExploitability) {
-        this(repoRoot, engines, secretMode, allowlist, enrichExploitability, List.of(), false);
+        this(repoRoot, engines, secretMode, allowlist, enrichExploitability, List.of(), false, false);
     }
 
-    /** Compatibilidade: chamadas com {@code changedFiles} mas sem verificação. */
+    /** Compatibilidade: chamadas com {@code changedFiles} mas sem verificação nem Maven. */
     public ScanRequest(Path repoRoot, Set<Engine> engines, SecretScanMode secretMode,
                         Allowlist allowlist, boolean enrichExploitability, List<ChangedFile> changedFiles) {
-        this(repoRoot, engines, secretMode, allowlist, enrichExploitability, changedFiles, false);
+        this(repoRoot, engines, secretMode, allowlist, enrichExploitability, changedFiles, false, false);
+    }
+
+    /** Compatibilidade: até verificação de segredos, sem Maven. */
+    public ScanRequest(Path repoRoot, Set<Engine> engines, SecretScanMode secretMode,
+                        Allowlist allowlist, boolean enrichExploitability, List<ChangedFile> changedFiles,
+                        boolean verifySecrets) {
+        this(repoRoot, engines, secretMode, allowlist, enrichExploitability, changedFiles, verifySecrets, false);
     }
 }

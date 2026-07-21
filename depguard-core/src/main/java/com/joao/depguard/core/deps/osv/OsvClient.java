@@ -82,7 +82,7 @@ public class OsvClient implements OsvApi {
      * ecossistema (confirmado batendo na API real: "pypi" devolve
      * {@code {"code":3,"message":"Invalid ecosystem."}}, só "PyPI" funciona).
      */
-    private static final Map<String, String> OSV_ECOSYSTEM_NAMES = Map.of("pypi", "PyPI");
+    private static final Map<String, String> OSV_ECOSYSTEM_NAMES = Map.of("pypi", "PyPI", "maven", "Maven");
 
     private String osvEcosystem(String ecosystem) {
         return OSV_ECOSYSTEM_NAMES.getOrDefault(ecosystem, ecosystem);

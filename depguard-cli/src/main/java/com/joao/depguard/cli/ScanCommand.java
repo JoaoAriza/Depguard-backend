@@ -70,6 +70,10 @@ public class ScanCommand implements Callable<Integer> {
             description = "Ignora o .depguard.yml do repo (por padrão ele é lido e mesclado à allowlist).")
     boolean repoConfig = true;
 
+    @Option(names = "--no-maven", negatable = true,
+            description = "Resolve deps Maven via 'mvn dependency:tree' se houver pom.xml (roda o build; on por padrão na CLI).")
+    boolean maven = true;
+
     @Option(names = "--upload", description = "Envia o resultado pro server (exige --server, --api-key, --project).")
     boolean uploadFlag;
 
@@ -112,7 +116,8 @@ public class ScanCommand implements Callable<Integer> {
             }
             SecretScanMode secretMode = historyFlag ? SecretScanMode.GIT_HISTORY : SecretScanMode.WORKING_TREE;
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, secretMode, allowlist, enrichFlag, java.util.List.of(), verifySecretsFlag);
+                    repoRoot, engines, secretMode, allowlist, enrichFlag, java.util.List.of(),
+                    verifySecretsFlag, maven);
 
             Scanner scanner = new DefaultScanner();
             ScanResult result = scanner.scan(request);

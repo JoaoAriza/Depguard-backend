@@ -8,6 +8,7 @@ import com.joao.depguard.core.deps.kev.KevClient;
 import com.joao.depguard.core.deps.osv.OsvApi;
 import com.joao.depguard.core.deps.osv.OsvClient;
 import com.joao.depguard.core.deps.osv.OsvVulnerabilityScanner;
+import com.joao.depguard.core.deps.maven.MavenResolver;
 import com.joao.depguard.core.deps.priority.ExploitabilityEnricher;
 import com.joao.depguard.core.deps.pypi.PoetryLockParser;
 import com.joao.depguard.core.deps.pypi.RequirementsTxtParser;
@@ -38,14 +39,16 @@ import java.util.Set;
  * <p>Engine A (Fase 1): npm via {@code package-lock.json} e PyPI via
  * {@code poetry.lock} (caminho feliz) ou {@code requirements.txt} (fallback
  * best-effort, sempre marca {@code partial}) — docs/architecture.md §2.1.
- * Maven fica de fora do MVP (sem lockfile próprio — ver docs §2.1). Engine B
- * cobre os três modos de {@link SecretScanMode}.
+ * Maven (§2.1) é opt-in via {@code request.resolveMaven()} — roda
+ * {@code mvn dependency:tree}, que executa o build, então só em código
+ * confiável. Engine B cobre os três modos de {@link SecretScanMode}.
  */
 public class DefaultScanner implements Scanner {
 
     private final NpmLockfileParser npmLockfileParser = new NpmLockfileParser();
     private final PoetryLockParser poetryLockParser = new PoetryLockParser();
     private final RequirementsTxtParser requirementsTxtParser = new RequirementsTxtParser();
+    private final MavenResolver mavenResolver = new MavenResolver();
     private final WorkingTreeSecretScanner secretScanner = new WorkingTreeSecretScanner();
     private final PrDiffSecretScanner prDiffSecretScanner = new PrDiffSecretScanner();
     private final GitHistorySecretScanner gitHistorySecretScanner = new GitHistorySecretScanner();
@@ -97,6 +100,20 @@ public class DefaultScanner implements Scanner {
                 // requirements.txt não garante fechamento transitivo completo
                 // (só pins exatos são extraídos) — sempre parcial (docs §2.1).
                 partial = true;
+            }
+
+            // Maven não tem lockfile: só resolvendo de verdade (roda o build).
+            // Opt-in (RCE em pom malicioso), então só quando request.resolveMaven().
+            if (request.resolveMaven() && Files.isRegularFile(request.repoRoot().resolve("pom.xml"))) {
+                List<Component> maven = mavenResolver.resolve(request.repoRoot());
+                if (maven.isEmpty()) {
+                    // pom.xml presente mas nada resolvido (mvn falta, build quebrou):
+                    // resultado incompleto pra esse ecossistema.
+                    partial = true;
+                } else {
+                    components.addAll(maven);
+                    ecosystems.add("maven");
+                }
             }
 
             if (!components.isEmpty()) {
