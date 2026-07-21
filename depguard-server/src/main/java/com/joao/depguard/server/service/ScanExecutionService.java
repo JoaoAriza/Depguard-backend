@@ -2,6 +2,7 @@ package com.joao.depguard.server.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.joao.depguard.core.Scanner;
+import com.joao.depguard.core.config.DepguardConfigLoader;
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.ChangedFile;
 import com.joao.depguard.core.model.Component;
@@ -56,6 +57,7 @@ public class ScanExecutionService {
     private final PolicyService policyService;
     private final ObjectMapper mapper = new ObjectMapper();
     private final CycloneDxWriter cycloneDxWriter = new CycloneDxWriter();
+    private final DepguardConfigLoader configLoader = new DepguardConfigLoader();
 
     public ScanExecutionService(ScanRepository scanRepository,
                                  ScanComponentRepository scanComponentRepository,
@@ -107,7 +109,8 @@ public class ScanExecutionService {
             // Verificação ao vivo é opt-in por projeto, guardada na policy (§3.3).
             boolean verifySecrets = policyService.rulesFor(project).verifySecrets();
             ScanRequest request = new ScanRequest(
-                    repoRoot, engines, secretMode, buildAllowlist(project), true, changedFiles, verifySecrets);
+                    repoRoot, engines, secretMode, buildAllowlist(project, repoRoot, secretMode),
+                    true, changedFiles, verifySecrets);
             ScanResult result = scanner.scan(request);
             persistResult(scanId, result);
             return true;
@@ -118,18 +121,40 @@ public class ScanExecutionService {
     }
 
     /**
-     * Segredos marcados FALSE_POSITIVE não voltam a aparecer nos próximos
-     * scans do mesmo projeto — reaproveita o {@code AllowlistMatcher} do core
-     * (fingerprint só, sem paths/regexes). Vulnerabilidades não passam por
-     * aqui: o scanner de dependências ainda não consulta Allowlist (só o de
-     * segredos faz isso hoje).
+     * Allowlist efetiva do scan: triagem FALSE_POSITIVE (fingerprints) +, em
+     * checkout CONFIÁVEL, o {@code .depguard.yml} do repo.
+     *
+     * <p>Segredos FALSE_POSITIVE não voltam nos próximos scans — reaproveita o
+     * {@code AllowlistMatcher} do core. Vulnerabilidades não passam por aqui
+     * (o scanner de dependências ainda não consulta Allowlist).
+     *
+     * <p><b>PR_DIFF NÃO lê o {@code .depguard.yml}</b>: o checkout é o head do
+     * PR, potencialmente de um contribuidor não-confiável que poderia
+     * allowlistar no mesmo PR o segredo que está introduzindo. Checkout
+     * completo (WORKING_TREE/GIT_HISTORY) é o código do dono — confiável.
      */
-    private Allowlist buildAllowlist(Project project) {
+    private Allowlist buildAllowlist(Project project, Path repoRoot, SecretScanMode secretMode) {
         Set<String> fingerprints = findingTriageRepository.findByProjectAndStatus(project, TriageStatus.FALSE_POSITIVE)
                 .stream()
                 .map(FindingTriage::getFingerprint)
                 .collect(Collectors.toSet());
-        return new Allowlist(Set.of(), Set.of(), fingerprints);
+        Allowlist triage = new Allowlist(Set.of(), Set.of(), fingerprints);
+
+        if (!honorsRepoConfig(secretMode)) {
+            return triage;
+        }
+        return triage.merge(configLoader.load(repoRoot));
+    }
+
+    /**
+     * Se o {@code .depguard.yml} do checkout deve ser respeitado. Fronteira de
+     * confiança: PR_DIFF escaneia o head de um PR possivelmente de contribuidor
+     * não-confiável, que poderia allowlistar no mesmo PR o segredo que
+     * introduz — então NÃO. Checkout completo (WORKING_TREE/GIT_HISTORY) é o
+     * código do dono do projeto, confiável.
+     */
+    static boolean honorsRepoConfig(SecretScanMode secretMode) {
+        return secretMode != SecretScanMode.PR_DIFF;
     }
 
     @Transactional

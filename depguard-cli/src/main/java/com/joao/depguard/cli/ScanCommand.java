@@ -2,6 +2,7 @@ package com.joao.depguard.cli;
 
 import com.joao.depguard.core.DefaultScanner;
 import com.joao.depguard.core.Scanner;
+import com.joao.depguard.core.config.DepguardConfigLoader;
 import com.joao.depguard.core.model.Allowlist;
 import com.joao.depguard.core.model.Engine;
 import com.joao.depguard.core.model.ScanRequest;
@@ -65,6 +66,10 @@ public class ScanCommand implements Callable<Integer> {
     @Option(names = "--allow-value-regex", description = "Regex de valor a ignorar na varredura de segredos (repetível).")
     List<String> allowValueRegexes = new ArrayList<>();
 
+    @Option(names = "--no-repo-config", negatable = true,
+            description = "Ignora o .depguard.yml do repo (por padrão ele é lido e mesclado à allowlist).")
+    boolean repoConfig = true;
+
     @Option(names = "--upload", description = "Envia o resultado pro server (exige --server, --api-key, --project).")
     boolean uploadFlag;
 
@@ -80,6 +85,7 @@ public class ScanCommand implements Callable<Integer> {
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
             .build();
+    private final DepguardConfigLoader configLoader = new DepguardConfigLoader();
 
     @Override
     public Integer call() {
@@ -100,6 +106,10 @@ public class ScanCommand implements Callable<Integer> {
 
             Allowlist allowlist = new Allowlist(
                     new LinkedHashSet<>(allowPaths), new LinkedHashSet<>(allowValueRegexes), Set.of());
+            // .depguard.yml do repo (checkout local = confiável): mesclado às flags.
+            if (repoConfig) {
+                allowlist = allowlist.merge(configLoader.load(repoRoot));
+            }
             SecretScanMode secretMode = historyFlag ? SecretScanMode.GIT_HISTORY : SecretScanMode.WORKING_TREE;
             ScanRequest request = new ScanRequest(
                     repoRoot, engines, secretMode, allowlist, enrichFlag, java.util.List.of(), verifySecretsFlag);

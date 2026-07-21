@@ -23,6 +23,12 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- .depguard.yml (§3.3): data-binding do Jackson (seguro, sem exec de código). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.cyclonedx</groupId>
             <artifactId>cyclonedx-core-java</artifactId>
