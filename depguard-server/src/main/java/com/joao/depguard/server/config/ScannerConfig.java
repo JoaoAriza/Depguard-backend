@@ -2,6 +2,7 @@ package com.joao.depguard.server.config;
 
 import com.joao.depguard.core.DefaultScanner;
 import com.joao.depguard.core.Scanner;
+import com.joao.depguard.core.deps.DependencyRechecker;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,5 +16,15 @@ public class ScannerConfig {
     @Bean
     public Scanner scanner() {
         return new DefaultScanner();
+    }
+
+    /**
+     * Re-check OSV do monitoramento contínuo (§7). Bean (em vez de {@code new}
+     * dentro do serviço) pra permitir injetar um fake nos testes do
+     * {@code MonitorService} sem tocar a rede.
+     */
+    @Bean
+    public DependencyRechecker dependencyRechecker() {
+        return new DependencyRechecker();
     }
 }

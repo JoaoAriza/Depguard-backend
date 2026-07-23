@@ -16,6 +16,14 @@ jwt:
   secret: ${JWT_SECRET:change-this-secret-in-production-min-32chars!!}
   expiration-ms: 86400000
 
+depguard:
+  monitor:
+    # Monitoramento contínuo (§7): re-check OSV das deps já shipadas.
+    # Cron do Spring (6 campos: seg min hora dia mês dia-semana). Default 03:00
+    # diariamente. Use "-" para desativar a varredura agendada (o trigger
+    # manual via endpoint continua funcionando).
+    cron: ${DEPGUARD_MONITOR_CRON:0 0 3 * * *}
+
 # github.app.id / private-key-path / webhook-secret: sem default sensato pra
 # nenhum dos três, então NÃO declarados aqui — @ConfigurationProperties já
 # capta -Dgithub.app.* / env vars automaticamente, e a ausência falha

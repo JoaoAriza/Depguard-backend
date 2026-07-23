@@ -1,5 +1,6 @@
 package com.joao.depguard.core;
 
+import com.joao.depguard.core.deps.DependencyRechecker;
 import com.joao.depguard.core.deps.NpmLockfileParser;
 import com.joao.depguard.core.deps.epss.EpssApi;
 import com.joao.depguard.core.deps.epss.EpssClient;
@@ -7,9 +8,7 @@ import com.joao.depguard.core.deps.kev.KevApi;
 import com.joao.depguard.core.deps.kev.KevClient;
 import com.joao.depguard.core.deps.osv.OsvApi;
 import com.joao.depguard.core.deps.osv.OsvClient;
-import com.joao.depguard.core.deps.osv.OsvVulnerabilityScanner;
 import com.joao.depguard.core.deps.maven.MavenResolver;
-import com.joao.depguard.core.deps.priority.ExploitabilityEnricher;
 import com.joao.depguard.core.deps.pypi.PoetryLockParser;
 import com.joao.depguard.core.deps.pypi.RequirementsTxtParser;
 import com.joao.depguard.core.model.Component;
@@ -52,9 +51,7 @@ public class DefaultScanner implements Scanner {
     private final WorkingTreeSecretScanner secretScanner = new WorkingTreeSecretScanner();
     private final PrDiffSecretScanner prDiffSecretScanner = new PrDiffSecretScanner();
     private final GitHistorySecretScanner gitHistorySecretScanner = new GitHistorySecretScanner();
-    private final OsvApi osvApi;
-    private final EpssApi epssApi;
-    private final KevApi kevApi;
+    private final DependencyRechecker rechecker;
 
     public DefaultScanner() {
         this(new OsvClient(), new EpssClient(), new KevClient());
@@ -66,9 +63,7 @@ public class DefaultScanner implements Scanner {
     }
 
     public DefaultScanner(OsvApi osvApi, EpssApi epssApi, KevApi kevApi) {
-        this.osvApi = osvApi;
-        this.epssApi = epssApi;
-        this.kevApi = kevApi;
+        this.rechecker = new DependencyRechecker(osvApi, epssApi, kevApi);
     }
 
     @Override
@@ -116,12 +111,10 @@ public class DefaultScanner implements Scanner {
                 }
             }
 
-            if (!components.isEmpty()) {
-                vulnFindings = new OsvVulnerabilityScanner(osvApi).scan(components);
-                if (request.enrichExploitability() && !vulnFindings.isEmpty()) {
-                    vulnFindings = new ExploitabilityEnricher(epssApi, kevApi).enrich(vulnFindings);
-                }
-            }
+            // Mesmo caminho que o monitoramento contínuo (§7) re-usa: componentes
+            // resolvidos -> OSV (+ enriquecimento). Extraído pro DependencyRechecker
+            // pra que scan e re-check produzam findings idênticos (mesmo fingerprint).
+            vulnFindings = rechecker.recheck(components, request.enrichExploitability());
         }
 
         List<SecretFinding> secretFindings = List.of();
