@@ -23,6 +23,11 @@ depguard:
     # diariamente. Use "-" para desativar a varredura agendada (o trigger
     # manual via endpoint continua funcionando).
     cron: ${DEPGUARD_MONITOR_CRON:0 0 3 * * *}
+  notifications:
+    # Fallback global do webhook de CVE-novo (3c): usado quando o projeto não
+    # tem webhook próprio (PUT /projects/{id}/notifications). Vazio = sem
+    # fallback (notificação só sai pros projetos com webhook próprio).
+    webhook-url: ${DEPGUARD_NOTIFICATIONS_WEBHOOK_URL:}
 
 # github.app.id / private-key-path / webhook-secret: sem default sensato pra
 # nenhum dos três, então NÃO declarados aqui — @ConfigurationProperties já

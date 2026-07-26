@@ -57,6 +57,13 @@ public class Project {
      */
     private Long githubInstallationId;
 
+    /**
+     * URL de webhook para notificações de CVE-novo do monitoramento contínuo
+     * (§7, 3c). Null/vazio = cai no fallback global
+     * ({@code depguard.notifications.webhook-url}) ou fica desabilitado.
+     */
+    private String notificationWebhookUrl;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 }

@@ -8,10 +8,10 @@ import java.util.UUID;
 
 public record ProjectDto(
         UUID id, String name, String repoUrl, ProjectProvider provider,
-        String defaultBranch, LocalDateTime createdAt
+        String defaultBranch, String notificationWebhookUrl, LocalDateTime createdAt
 ) {
     public static ProjectDto from(Project p) {
         return new ProjectDto(p.getId(), p.getName(), p.getRepoUrl(), p.getProvider(),
-                p.getDefaultBranch(), p.getCreatedAt());
+                p.getDefaultBranch(), p.getNotificationWebhookUrl(), p.getCreatedAt());
     }
 }

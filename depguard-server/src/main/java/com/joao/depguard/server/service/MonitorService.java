@@ -10,6 +10,7 @@ import com.joao.depguard.server.model.Project;
 import com.joao.depguard.server.model.Scan;
 import com.joao.depguard.server.model.ScanComponent;
 import com.joao.depguard.server.model.ScanStatus;
+import com.joao.depguard.server.notification.MonitorNotifier;
 import com.joao.depguard.server.repository.MonitorAlertRepository;
 import com.joao.depguard.server.repository.ProjectRepository;
 import com.joao.depguard.server.repository.ScanComponentRepository;
@@ -55,19 +56,22 @@ public class MonitorService {
     private final MonitorAlertRepository alertRepository;
     private final DependencyRechecker rechecker;
     private final MonitorAlertService alertService;
+    private final MonitorNotifier notifier;
 
     public MonitorService(ProjectRepository projectRepository,
                           ScanRepository scanRepository,
                           ScanComponentRepository scanComponentRepository,
                           MonitorAlertRepository alertRepository,
                           DependencyRechecker rechecker,
-                          MonitorAlertService alertService) {
+                          MonitorAlertService alertService,
+                          MonitorNotifier notifier) {
         this.projectRepository = projectRepository;
         this.scanRepository = scanRepository;
         this.scanComponentRepository = scanComponentRepository;
         this.alertRepository = alertRepository;
         this.rechecker = rechecker;
         this.alertService = alertService;
+        this.notifier = notifier;
     }
 
     /**
@@ -117,6 +121,13 @@ public class MonitorService {
         List<MonitorAlertDto> newAlerts = reconcile.newlyAlerted().stream()
                 .map(MonitorAlertDto::from)
                 .toList();
+
+        // Notifica DEPOIS do commit da reconciliação (nunca dentro da transação):
+        // se o webhook falhar, o alerta já está persistido e visível na UI. Só os
+        // alertas novos desta execução — a idempotência da 3b evita re-notificar.
+        if (!newAlerts.isEmpty()) {
+            notifier.notifyNewAlerts(project, newAlerts);
+        }
 
         return Optional.of(MonitorRecheckDto.of(
                 project.getId(), scan.getId(), scan.getFinishedAt(),

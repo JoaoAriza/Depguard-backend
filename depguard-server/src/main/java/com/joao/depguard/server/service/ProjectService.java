@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ProjectService {
@@ -32,6 +33,7 @@ public class ProjectService {
                 .repoUrl(req.repoUrl())
                 .provider(req.provider())
                 .defaultBranch(req.defaultBranch())
+                .notificationWebhookUrl(blankToNull(req.notificationWebhookUrl()))
                 .createdAt(LocalDateTime.now())
                 .build();
         return projectRepository.save(project);
@@ -39,5 +41,25 @@ public class ProjectService {
 
     public List<Project> list(AppUser user) {
         return projectRepository.findByOrganizationOrderByCreatedAtDesc(user.getOrganization());
+    }
+
+    /**
+     * Define (ou limpa, se null/vazio) o webhook de notificação do projeto (§7,
+     * 3c). Escopado pela org do usuário — 404 pra projeto de outra org, pra não
+     * vazar a existência.
+     */
+    @Transactional
+    public Project updateNotificationWebhook(UUID projectId, AppUser user, String webhookUrl) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado."));
+        if (!project.getOrganization().getId().equals(user.getOrganization().getId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Projeto não encontrado.");
+        }
+        project.setNotificationWebhookUrl(blankToNull(webhookUrl));
+        return projectRepository.save(project);
+    }
+
+    private static String blankToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
     }
 }

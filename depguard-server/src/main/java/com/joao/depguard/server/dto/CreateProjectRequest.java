@@ -6,5 +6,7 @@ public record CreateProjectRequest(
         String name,
         String repoUrl,
         ProjectProvider provider,
-        String defaultBranch
+        String defaultBranch,
+        /** Opcional: webhook de notificação de CVE-novo (§7, 3c). */
+        String notificationWebhookUrl
 ) {}
